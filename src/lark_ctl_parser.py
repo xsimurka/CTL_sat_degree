@@ -1,38 +1,40 @@
 from lark import Lark, Transformer
-from diplomka.src.ctl_formulae import *
+from src.ctl_formulae import *
 
 
 grammar = r"""
+    
     start: state_formula
 
-    ?state_formula: "AG" "(" state_formula ")"    -> ag
-                  | "AF" "(" state_formula ")"    -> af
-                  | "AX" "(" state_formula ")"    -> ax
-                  | "EG" "(" state_formula ")"    -> eg
-                  | "EF" "(" state_formula ")"    -> ef
-                  | "EX" "(" state_formula ")"    -> ex
-                  | "A" "(" state_formula ")" "U" "(" state_formula ")" -> au
-                  | "E" "(" state_formula ")" "U" "(" state_formula ")" -> eu
-                  | "A" "(" state_formula ")" "W" "(" state_formula ")" -> aw
-                  | "E" "(" state_formula ")" "W" "(" state_formula ")" -> ew
-                  | state_formula "&" state_formula -> conjunction
-                  | state_formula "|" state_formula -> disjunction
+    ?state_formula : state_formula_c
+                  | atomic_formula "&&" state_formula_c -> conjunction
+                  | atomic_formula "||" state_formula_c -> disjunction
+                  | state_formula_c "&&" atomic_formula -> conjunction
+                  | state_formula_c "||" atomic_formula -> disjunction
+                  | "(" state_formula ")" //-> parenthesis
                   | atomic_formula
-
-    ?atomic_formula: negation
-                   | atomic_and
-                   | atomic_or
+                  
+    ?state_formula_c : state_formula_c "&&" state_formula_c -> conjunction
+                  | state_formula_c "||" state_formula_c -> disjunction
+                  | "AG" state_formula   -> ag
+                  | "AF" state_formula   -> af
+                  | "AX" state_formula   -> ax
+                  | "EG" state_formula   -> eg
+                  | "EF" state_formula   -> ef
+                  | "EX" state_formula   -> ex
+                  | "A" state_formula "U" state_formula -> au
+                  | "E" state_formula "U" state_formula -> eu
+                  | "A" state_formula "W" state_formula  -> aw
+                  | "E" state_formula "W" state_formula -> ew
+                  | "(" state_formula_c ")" -> parenthesis
+                  
+    ?atomic_formula : "!" atomic_formula -> negation
+                   | atomic_formula "&" atomic_formula -> intersection
+                   | atomic_formula "|" atomic_formula -> union
                    | ap
-                   | parenthesis
-
-    negation: "!" "(" atomic_formula ")" -> negation
-
-    atomic_and: atomic_formula "&" atomic_formula -> intersection
-    atomic_or: atomic_formula "|" atomic_formula -> union
+                   | "(" atomic_formula ")" -> parenthesis
 
     ap: CNAME OPERATOR VALUE -> ap
-
-    parenthesis: "(" state_formula ")" -> parenthesis
 
     OPERATOR: "<=" | ">="
     VALUE: /[0-9]+/
@@ -101,27 +103,60 @@ class FormulaTransformer(Transformer):
 
 
 # Create the parser
-parser = Lark(grammar, start='start', parser='lalr', transformer=FormulaTransformer())
 
-# Example usage
+
 examples = [
-    "(x >= 1) | (y >= 2)",
-    "AF (x >= 1) | (y >= 2)",
-    "AG (x1 >= 3)",
-    "AF (x2 <= 4 | x3 >= 5)",
-    "AX (!(x4 <= 7 & x5 >= 2))",
-    "A (x1 >= 2) U (EG (x2 >= 1))",
-    "E (AG (x3 <= 5)) W (EF (x4 >= 8))",
-    "!(x1 <= 3 & x2 >= 7)",
-    "!(x1 >= 2 | x2 <= 6)",
-    "(x1 >= 2) & (x2 <= 3)",
-    "!(x1 >= 3)",
+    # Conjunction of two state formulas
+    "AG (x1 >= 1) && EF (x2 <= 5)",
+
+    # Disjunction of two state formulas
+    "AX (x3 >= 2) || EG (x4 <= 7)",
+
+    # A temporal operator on a conjunction of two state formulas
+    "AF (AG (x1 >= 3) && EF (x2 <= 2))",
+
+    # Conjunction of atomic and state formula (mix)
+    "(x1 >= 2) && AF (x2 >= 1)",
+
+    # Disjunction of atomic and state formula (mix)
+    "(x3 <= 4) || EG (x5 >= 8)",
+
+    # Nested temporal operators with conjunction inside
+    "AG (AX (x1 >= 2) && EX (x2 <= 7))",
+
+    # Until operator where left is a state formula and right is an atomic proposition
+    "A (AG (x1 >= 4)) U (x2 <= 3)",
+
+    # Weak until with mixed atomic/state formulas
+    "E (x1 >= 2) W (AF (x3 <= 6))",
+
+    # Negation of conjunction of a state formula and an atomic proposition
+    "EG (x1 >= 4) & !(x2 <= 5)",
+
+    # Nested negation and union inside temporal operators
+    "AF (!(x1 >= 4 | x2 <= 3))",
+
+    # Deeply nested temporal operators with conjunctions
+    "EG (AF (AX (x1 >= 5) && EX (x2 <= 6)))",
+
+    # Disjunction at the top level combining state formulas
+    "AF (x1 >= 3) || EG (x2 <= 8)",
+
+    # Negation of disjunction of two state formulas
+    "(AF !(x1 >= 3) || EF (x2 <= 4))"
 ]
 
-for i, example in enumerate(examples, 1):
-    print(f"\nExample {i}: {example}")
-    try:
-        tree = parser.parse(example)
-        print(tree.children[0])
-    except Exception as e:
-        print(f"Error parsing: {e}")
+
+# for i, example in enumerate(examples, 1):
+#     print(f"\nExample {i}: {example}")
+#     try:
+#         tree = parser.parse(example)
+#         print(tree.children[0])
+#     except Exception as e:
+#         print(f"Error parsing: {e}")
+
+
+def parse_formula(formula):
+    parser = Lark(grammar, start='start', parser='lalr', transformer=FormulaTransformer())
+    tree = parser.parse(formula)
+    return tree.children[0]

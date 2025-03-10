@@ -1,5 +1,5 @@
 import re
-from diplomka.src.ctl_formulae import *
+from src.ctl_formulae import *
 
 
 class CTLParser:

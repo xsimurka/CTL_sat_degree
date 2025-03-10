@@ -1,14 +1,3 @@
-class AtomicFormula:
-    def __init__(self, formula):
-        self.formula = formula
-
-    def __repr__(self):
-        return f"{self.formula}"
-
-    def eval(self):
-        pass
-
-
 class AtomicProposition:
     def __init__(self, variable, operator, value):
         self.variable = variable
@@ -16,7 +5,7 @@ class AtomicProposition:
         self.value = value
 
     def __repr__(self):
-        return f"{self.variable} {self.operator} {self.value}"
+        return f"({self.variable} {self.operator} {self.value})"
 
 
 class Negation:
@@ -24,7 +13,7 @@ class Negation:
         self.operand = operand
 
     def __repr__(self):
-        return f"!({repr(self.operand)})"  # Properly represent negation
+        return f"!{repr(self.operand)}"  # Properly represent negation
 
     def eval(self):
         pass  # Placeholder for evaluation logic
@@ -71,7 +60,7 @@ class Conjunction:
         self.right = right
 
     def __repr__(self):
-        return f"({repr(self.left)} & {repr(self.right)})"  # Corrected formatting for Conjunction
+        return f"({repr(self.left)} && {repr(self.right)})"  # Corrected formatting for Conjunction
 
     def eval(self):
         pass  # Placeholder for evaluation logic
@@ -83,7 +72,7 @@ class Disjunction:
         self.right = right
 
     def __repr__(self):
-        return f"({repr(self.left)} | {repr(self.right)})"  # Corrected formatting for Disjunction
+        return f"({repr(self.left)} || {repr(self.right)})"  # Corrected formatting for Disjunction
 
     def eval(self):
         pass  # Placeholder for evaluation logic

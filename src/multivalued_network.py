@@ -2,76 +2,6 @@ import json
 import itertools
 
 
-json_string = '''
-{
-  "variables": {
-    "gene1": 3,
-    "gene2": 3,
-    "gene3": 2,
-    "gene4": 3
-  },
-  "regulations": [
-    {
-      "target": "gene1",
-      "regulators": [
-        { "variable": "gene2", "thresholds": [1, 2] },
-        { "variable": "gene3", "thresholds": [1, 2] }
-      ],
-      "contexts": [
-        { "intervals": [2, 1], "target_value": 0 },
-        { "intervals": [1, 1], "target_value": 1 },
-        { "intervals": [1, 2], "target_value": 2 },
-        { "intervals": [2, 2], "target_value": 2 },
-        { "intervals": ["*", "*"], "target_value": 2 }
-      ]
-    },
-    {
-      "target": "gene2",
-      "regulators": [
-        { "variable": "gene1", "thresholds": [1, 2] },
-        { "variable": "gene4", "thresholds": [1] }
-      ],
-      "contexts": [
-        { "intervals": [1, "*"], "target_value": 2 },
-        { "intervals": [2, "*"], "target_value": 1 },
-        { "intervals": ["*", 1], "target_value": 1 },
-        { "intervals": ["*", 2], "target_value": 0 },
-        { "intervals": [1, 1], "target_value": 2 },
-        { "intervals": [2, 1], "target_value": 1 }
-      ]
-    },
-    {
-      "target": "gene3",
-      "regulators": [
-        { "variable": "gene1", "thresholds": [1, 2] },
-        { "variable": "gene4", "thresholds": [2] }
-      ],
-      "contexts": [
-        { "intervals": [1, "*"], "target_value": 0 },
-        { "intervals": [2, "*"], "target_value": 2 },
-        { "intervals": ["*", 2], "target_value": 1 },
-        { "intervals": [3, 2], "target_value": 0 },
-        { "intervals": ["*", 1], "target_value": 0 }
-      ]
-    },
-    {
-      "target": "gene4",
-      "regulators": [
-        { "variable": "gene2", "thresholds": [2] },
-        { "variable": "gene3", "thresholds": [1] }
-      ],
-      "contexts": [
-        { "intervals": [1, 1], "target_value": 2 },
-        { "intervals": [2, 2], "target_value": 0 },
-        { "intervals": ["*", "*"], "target_value": 1 }
-      ]
-    }
-  ]
-}
-
-'''
-
-
 class MultivaluedGRN:
     def __init__(self, variables, regulations):
         self.variables = variables
@@ -284,8 +214,3 @@ class StateTransitionGraph:
     def get_transition_graph(self):
         """ Return the computed transition graph. """
         return self.graph
-
-
-x = MvGRNParser(json.loads(json_string)).parse()
-s = StateTransitionGraph(x)
-print(s)
