@@ -147,15 +147,6 @@ examples = [
 ]
 
 
-# for i, example in enumerate(examples, 1):
-#     print(f"\nExample {i}: {example}")
-#     try:
-#         tree = parser.parse(example)
-#         print(tree.children[0])
-#     except Exception as e:
-#         print(f"Error parsing: {e}")
-
-
 def parse_formula(formula):
     parser = Lark(grammar, start='start', parser='lalr', transformer=FormulaTransformer())
     tree = parser.parse(formula)

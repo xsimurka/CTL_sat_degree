@@ -1,7 +1,9 @@
 import json
 from src.multivalued_network import StateTransitionGraph, MvGRNParser
 from src.lark_ctl_parser import parse_formula
-from src.quantitative_ctl import model_check
+from src.quantitative_ctl import model_check, KripkeStructure
+from src.ctl_formulae import *
+import itertools
 
 json_string = '''
 {
@@ -81,23 +83,60 @@ json_string = '''
 '''
 
 
+def validate_initial_states(initial_states, mvgrn):
+    """
+    Validates whether all constraints in initial_states lie within the allowed range [0, max_activity_value].
+
+    :param initial_states: dict of initial state constraints { variable_name: value }
+    :param mvgrn: parsed MvGRN object, expected to have 'variables' attribute { variable_name: max_activity_value }
+    :raises ValueError: if any value is out of bounds or the variable doesn't exist in mvgrn.
+    """
+    for var, value in initial_states.items():
+        if var not in mvgrn.variables:
+            raise ValueError(f"Variable '{var}' not found in the network.")
+
+        max_value = mvgrn.variables[var]
+
+        if not (0 <= value <= max_value):
+            raise ValueError(
+                f"Value {value} for variable '{var}' is out of bounds. Allowed range is [0, {max_value}]."
+            )
+
+
+def generate_initial_states(initial_states: dict, variables: dict):
+    ordered_variables = list(variables.keys())
+    domains = []
+    for var in ordered_variables:
+        if var in initial_states:
+            domains.append([initial_states[var]])
+        else:
+            domains.append(list(range(variables[var] + 1)))
+
+    all_states = list(itertools.product(*domains))
+
+    return all_states
+
+
+def format_result(result) -> str:
+    pass
+
+
 def main(json_file):
     with open(json_file, 'r') as file:
         json_data = json.load(file)
 
     formula = json_data.get("formula")
-    parsed_formula = parse_formula(formula)
-
+    parsed_formula: StateFormula = parse_formula(formula)
+    positive_formula: StateFormula = parsed_formula.eliminate_negation()
+    initial_states = json_data.get("initial_states")
     network_data = json_data.get("network")
     mvgrn = MvGRNParser(network_data).parse()
-
+    validate_initial_states(initial_states, mvgrn)
     stg = StateTransitionGraph(mvgrn)
-
-    initial_states = json_data.get("initial_states")
-
-    result = model_check(stg, parsed_formula, initial_states)
-
-    print("Model Checking Result:", result)
+    initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
+    ks = KripkeStructure(stg, initial_states)
+    result = model_check(ks, positive_formula)
+    format_result(result)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
-import json
 import itertools
+import networkx as nx
 
 
 class MultivaluedGRN:
@@ -8,7 +8,7 @@ class MultivaluedGRN:
         self.regulations = regulations
 
     def get_parsed_data(self):
-        """ Return the validated and parsed data. """
+        """Return the validated and parsed GRN data."""
         return {
             "variables": self.variables,
             "regulations": self.regulations
@@ -22,195 +22,204 @@ class MvGRNParser:
         self.regulations = None
 
     def parse(self):
-        """ Parse and validate the JSON, and return a MultivaluedGRN object if valid. """
-        if "variables" not in self.json_data or "regulations" not in self.json_data:
-            raise ValueError("Fields 'variables' and 'regulations' both have to be specified.")
+        """
+        Parse and validate JSON data. Return a MultivaluedGRN object.
+        """
+        required_fields = {"variables", "regulations"}
+        if not required_fields.issubset(self.json_data):
+            raise ValueError("Both 'variables' and 'regulations' fields must be specified.")
 
-        variables = self.json_data.get("variables")
-        regulations = self.json_data.get("regulations")
-
-        # Validate JSON
-        self.variables = self._validate_variables(variables)
-        self.regulations = self._validate_regulations(regulations)
+        self.variables = self._validate_variables(self.json_data["variables"])
+        self.regulations = self._validate_regulations(self.json_data["regulations"])
 
         return MultivaluedGRN(self.variables, self.regulations)
 
     def _validate_variables(self, variables):
-        """ Ensure variables are properly defined with valid max values. """
+        """Validate variables are a dict and each has a positive integer max value."""
         if not isinstance(variables, dict):
-            raise ValueError("The 'variables' field must be a dictionary.")
+            raise ValueError("'variables' must be a dictionary.")
 
         for gene, max_value in variables.items():
             if not isinstance(max_value, int) or max_value <= 0:
-                raise ValueError(f"Invalid max activity value for {gene}: {max_value}. Must be an integer > 0.")
-
+                raise ValueError(f"Invalid max activity value for '{gene}': {max_value}. Must be an integer > 0.")
         return variables
 
     def _validate_regulations(self, regulations):
-        """ Validate regulations including gene existence, regulator thresholds, and context structure. """
+        """Validate regulations structure and contents."""
         if not isinstance(regulations, list):
-            raise ValueError("The 'regulations' field must be a list.")
+            raise ValueError("'regulations' must be a list.")
 
         for regulation in regulations:
             self._validate_regulation(regulation)
-
         return regulations
 
     def _validate_regulation(self, regulation):
-        if "target" not in regulation or "regulators" not in regulation or "contexts" not in regulation:
-            raise ValueError("Fields 'target', 'regulators' and 'contexts' all have to be specified.")
+        """Validate an individual regulation structure."""
+        required_fields = {"target", "regulators", "contexts"}
+        if not required_fields.issubset(regulation):
+            raise ValueError("Each regulation must have 'target', 'regulators', and 'contexts' fields.")
 
-        target = regulation.get("target")
+        target = regulation["target"]
         if target not in self.variables:
             raise ValueError(f"Target gene '{target}' is not defined in 'variables'.")
 
-        regulators = regulation.get("regulators")
+        regulators = regulation["regulators"]
         self._validate_regulators(regulators)
 
-        contexts = regulation.get("contexts")
+        contexts = regulation["contexts"]
         self._validate_contexts(contexts, target, regulators)
 
     def _validate_regulators(self, regulators):
-        """ Ensure regulators exist and have valid thresholds. """
+        """Validate all regulators in the regulation."""
         if not isinstance(regulators, list):
-            raise ValueError("The 'regulators' field must be a list.")
+            raise ValueError("'regulators' must be a list.")
 
         for regulator in regulators:
             self._validate_regulator(regulator)
 
     def _validate_regulator(self, regulator):
-        if "variable" not in regulator or "thresholds" not in regulator:
-            raise ValueError("Fields 'variable' and 'thresholds' both have to be specified.")
+        """Validate an individual regulator and its thresholds."""
+        required_fields = {"variable", "thresholds"}
+        if not required_fields.issubset(regulator):
+            raise ValueError("Each regulator must have 'variable' and 'thresholds' fields.")
 
-        gene = regulator.get("variable")
+        gene = regulator["variable"]
+        thresholds = regulator["thresholds"]
+
         if gene not in self.variables:
             raise ValueError(f"Regulator gene '{gene}' is not defined in 'variables'.")
 
         max_value = self.variables[gene]
-        thresholds = regulator.get("thresholds")
         if not all(isinstance(t, int) and 0 < t <= max_value for t in thresholds):
-            raise ValueError(
-                f"Invalid thresholds {thresholds} for '{gene}'. Must be integers within [0, {max_value}].")
+            raise ValueError(f"Invalid thresholds {thresholds} for '{gene}'. Must be within [1, {max_value}].")
 
     def _validate_contexts(self, contexts, target, regulators):
-        """ Ensure contexts align with regulator activity thresholds, allow wildcards, and validate target values. """
+        """Validate all contexts in the regulation."""
         if not isinstance(contexts, list):
-            raise ValueError("The 'contexts' field must be a list.")
+            raise ValueError("'contexts' must be a list.")
 
-        target_max_activity_value = self.variables[target]
-        expected_length = len(regulators)
+        target_max = self.variables[target]
 
         for context in contexts:
-            self._validate_context(context, target_max_activity_value, regulators)
+            self._validate_context(context, target_max, regulators)
 
+    def _validate_context(self, context, target_max, regulators):
+        """Validate an individual context."""
+        required_fields = {"intervals", "target_value"}
+        if not required_fields.issubset(context):
+            raise ValueError("Each context must have 'intervals' and 'target_value' fields.")
 
-    def _validate_context(self, context, target_max_activity_value, regulators):
-        if "intervals" not in context or "target_value" not in context:
-            raise ValueError("Fields 'intervals' and 'target_value' both have to be specified.")
+        intervals = context["intervals"]
+        target_value = context["target_value"]
 
-        intervals = context.get("intervals")
-        target_value = context.get("target_value")
-        # Check that the target value is within the allowed range
-        if not (0 <= target_value <= target_max_activity_value):
-            raise ValueError(
-                f"Invalid target activity value '{target_value}' for context '{context}'. Must be in range [0, {target_max_activity_value}].")
+        if not (0 <= target_value <= target_max):
+            raise ValueError(f"Target value '{target_value}' must be in range [0, {target_max}].")
 
-        # Ensure correct format of intervals (e.g., [1,2.."*"])
-        if not (isinstance(intervals, list) and all((x == "*" or isinstance(x, int)) for x in intervals)):
-            raise ValueError(f"Invalid context format: {context}. Expected a list of integers or '*'.")
+        if not (isinstance(intervals, list) and all(isinstance(x, int) or x == "*" for x in intervals)):
+            raise ValueError(f"Intervals {intervals} must be a list of integers or '*'.")
 
-        if len(regulators) != len(intervals):
-            raise ValueError(
-                f"Context '{context}' length does not match the number of regulators ({len(regulators)}).")
+        if len(intervals) != len(regulators):
+            raise ValueError("Length of 'intervals' does not match number of regulators.")
 
-        for idx, value in enumerate(intervals):
-            if value == "*":
+        for idx, val in enumerate(intervals):
+            if val == "*":
                 continue
 
-            # the n activity levels split the activity of regulator into n + 1 activity intervals
-            # the value at idx-th position in context should refer to the index of activity interval of corresponding regulator
-            if value < 1:
-                raise ValueError(f"Invalid context value '{value}' at position {idx} in context '{context}'.")
-
-            # the value should refer to the index of activity interval defined by 'regulators' activity thresholds
-            if value > len(regulators[idx].get("thresholds")) + 1:
-                raise ValueError(f"Invalid context value '{value}' at position {idx} in context '{context}'.")
+            thresholds_count = len(regulators[idx]["thresholds"])
+            if val < 1 or val > thresholds_count + 1:
+                raise ValueError(
+                    f"Context value '{val}' at position {idx} is invalid. Must be within [1, {thresholds_count + 1}]."
+                )
 
 
 class StateTransitionGraph:
     def __init__(self, grn):
-        """ Initialize the state transition graph using an instance of MultivaluedGRN. """
+        """
+        Initialize the state transition graph from a MultivaluedGRN object.
+        """
         self.variables = grn.variables
         self.regulations = {reg["target"]: reg for reg in grn.regulations}
-        self.states = list(self._generate_all_states())  # Generate all possible states
-        self.graph = self._build_transition_graph()  # Compute transitions
+        self.states = list(self._generate_all_states())
+        self.graph = self._construct_graph()
 
     def _generate_all_states(self):
-        """ Generate all possible states as tuples. """
-        ranges = [range(v + 1) for v in self.variables.values()]
-        return itertools.product(*ranges)  # Cartesian product of all variable values
+        """
+        Generate all possible states of the GRN.
 
-    def _build_transition_graph(self):
-        """ Create the state transition graph where each state has possible successors. """
-        graph = {}
+        @return: Iterator over state tuples.
+        """
+        domains = [range(max_value + 1) for max_value in self.variables.values()]
+        return itertools.product(*domains)
+
+    def _construct_graph(self):
+        """
+        Build the directed state transition graph.
+
+        @return: networkx.DiGraph object.
+        """
+        G = nx.DiGraph()
+        G.add_nodes_from(self.states)
 
         for state in self.states:
-            successors = self._get_successors(state)
+            successors = self._compute_state_successors(state)
             if not successors:
-                successors = [state]  # Add a self-loop if there are no successors
-            graph[state] = successors
+                successors = [state]  # Self-loop for stable states
 
-        return graph
+            for succ in successors:
+                G.add_edge(state, succ)
 
-    def _get_successors(self, state):
-        """ Find all valid successor states for a given state. """
+        return G
+
+    def _compute_state_successors(self, state):
+        """
+        Compute all valid successor states from a given state.
+
+        @param state: Tuple of gene activity levels.
+        @return: List of successor states.
+        """
         successors = []
-        variable_list = list(self.variables.keys())
+        variable_names = list(self.variables.keys())
 
-        for i, gene in enumerate(variable_list):
-            current_value = state[i]
+        for idx, gene in enumerate(variable_names):
+            current_val = state[idx]
             regulation = self.regulations.get(gene)
 
             if not regulation:
-                continue  # No regulation means no transitions
+                continue  # No regulation → no transitions for this gene
 
-            regulators = [reg["variable"] for reg in regulation["regulators"]]
-            regulator_indices = [variable_list.index(reg) for reg in regulators]
+            regulator_names = [r["variable"] for r in regulation["regulators"]]
+            regulator_indices = [variable_names.index(rn) for rn in regulator_names]
+            regulator_state = [state[i] for i in regulator_indices]
 
-            # Construct the current regulatory context
-            regulator_state = [state[idx] for idx in regulator_indices]
-
-            # Find the first satisfied context
             for context in regulation["contexts"]:
-                context_intervals = context["intervals"]
-                target_value = context["target_value"]
+                if is_context_satisfied(context["intervals"], regulator_state):
+                    target_val = context["target_value"]
+                    delta = target_val - current_val
 
-                # Check if this context matches the regulator state
-                if self._context_matches(context_intervals, regulator_state):
-                    # Determine the new value of the gene
-                    if current_value < target_value:
-                        new_value = current_value + 1
-                    elif current_value > target_value:
-                        new_value = current_value - 1
-                    else:
-                        new_value = current_value  # No change
+                    if delta == 0:
+                        break
 
-                    if new_value != current_value:
-                        new_state = list(state)
-                        new_state[i] = new_value
-                        successors.append(tuple(new_state))
-
-                    break  # Stop at the first matching context
+                    next_state = list(state)
+                    next_state[idx] = current_val + (1 if delta > 0 else -1)
+                    successors.append(tuple(next_state))
+                    break  # First matching context determines transition
 
         return successors
 
-    def _context_matches(self, context_intervals, regulator_state):
-        """ Check if a given regulatory context matches the current regulator state. """
-        for context_val, state_val in zip(context_intervals, regulator_state):
-            if context_val != "*" and context_val != state_val:
-                return False
-        return True
-
     def get_transition_graph(self):
-        """ Return the computed transition graph. """
+        """Return the constructed state transition graph."""
         return self.graph
+
+
+def is_context_satisfied(context_intervals, regulator_state):
+    """
+    Check whether a context's intervals are satisfied by the given regulator state.
+
+    @param context_intervals: List of intervals (integers or "*").
+    @param regulator_state: List of current regulator activity levels.
+    @return: True if context is satisfied, False otherwise.
+    """
+    return all(
+        ci == "*" or ci == rs
+        for ci, rs in zip(context_intervals, regulator_state)
+    )
