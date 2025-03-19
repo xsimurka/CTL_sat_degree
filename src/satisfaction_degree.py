@@ -1,10 +1,7 @@
 from typing import List, Tuple
 import bisect
 from math import inf
-
-Domain = List[int]
-DomainOfValidity = List[Domain]
-State = Tuple[int]
+from src.custom_types import *
 
 
 def weighted_signed_distance(dov: DomainOfValidity, state: State, max_act_values: List[int]) -> float:
