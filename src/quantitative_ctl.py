@@ -4,7 +4,7 @@ from src.ctl_formulae import *
 
 class KripkeStructure:
 
-    def __init__(self, stg, init_states: Optional[List[Tuple[int]]]):
+    def __init__(self, stg, init_states: Optional[List[State]]):
         self.stg = stg
         self.init_states = init_states if init_states is not None else stg.states
 
