@@ -9,11 +9,13 @@ class KripkeStructure:
         self.init_states = init_states if init_states is not None else stg.states
 
 
-def model_check(ks: KripkeStructure, formula: StateFormula):
+def model_check(ks: KripkeStructure, formula: StateFormula) -> MCDataType:
     subformulae = formula.get_subformulae()
     mc_data = init_mc_data(ks, [repr(sf) for sf in subformulae])
     for sf in subformulae:
         sf.evaluate(ks, mc_data)
+
+    return mc_data
 
 
 def init_mc_data(ks: KripkeStructure, labels):

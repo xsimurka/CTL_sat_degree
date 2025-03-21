@@ -1,4 +1,5 @@
 import json
+from math import inf
 from src.multivalued_network import StateTransitionGraph, MvGRNParser
 from src.lark_ctl_parser import parse_formula
 from src.quantitative_ctl import model_check, KripkeStructure
@@ -117,8 +118,23 @@ def generate_initial_states(initial_states: dict, variables: dict):
     return all_states
 
 
-def format_result(result) -> str:
-    pass
+def format_result(result, initial_states, formula) -> None:
+    minimum, maximum, cumulative = inf, -inf, 0
+    min_state, max_state = None, None
+    for state in initial_states:
+        value = result[state][repr(formula)]
+        if value < minimum:
+            min_state = state
+            minimum = value
+        if value > maximum:
+            max_state = state
+            maximum = value
+        cumulative += value
+
+    print("Formula: ", repr(formula))
+    print("Best value ", maximum, " in state ", max_state)
+    print("Best value ", minimum, " in state ", min_state)
+    print("Average value among initial states: ", cumulative / len(initial_states))
 
 
 def main(json_file):
@@ -136,7 +152,7 @@ def main(json_file):
     initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
     ks = KripkeStructure(stg, initial_states)
     result = model_check(ks, positive_formula)
-    format_result(result)
+    format_result(result, initial_states, positive_formula)
 
 
 if __name__ == "__main__":

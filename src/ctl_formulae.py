@@ -273,26 +273,6 @@ class AX(StateFormula):
             mc_data[state][repr(self)] = min(mc_data[s][repr(self.operand)] for s in succs)
 
 
-class AU(StateFormula):
-    def __init__(self, left: StateFormula, right: StateFormula):
-        self.left = left
-        self.right = right
-
-    def __repr__(self) -> str:
-        return f"A ({repr(self.left)}) U ({repr(self.right)})"
-
-    def eliminate_negation(self) -> 'StateFormula':
-        return AU(self.left.eliminate_negation(), self.right.eliminate_negation())
-
-    def get_subformulae(self) -> List['StateFormula']:
-        sub_left = self.left.get_subformulae()
-        sub_right = self.right.get_subformulae()
-        return sub_left + sub_right + [self]
-
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
-        pass
-
-
 class EG(StateFormula):
     def __init__(self, operand: StateFormula):
         self.operand = operand
@@ -360,6 +340,37 @@ class EX(StateFormula):
             mc_data[state][repr(self)] = max(mc_data[s][repr(self.operand)] for s in succs)
 
 
+class AU(StateFormula):
+    def __init__(self, left: StateFormula, right: StateFormula):
+        self.left = left
+        self.right = right
+
+    def __repr__(self) -> str:
+        return f"A ({repr(self.left)}) U ({repr(self.right)})"
+
+    def eliminate_negation(self) -> 'StateFormula':
+        return AU(self.left.eliminate_negation(), self.right.eliminate_negation())
+
+    def get_subformulae(self) -> List['StateFormula']:
+        sub_left = self.left.get_subformulae()
+        sub_right = self.right.get_subformulae()
+        return sub_left + sub_right + [self]
+
+    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+        queue = set(ks.stg.states)
+        for state in ks.stg.states:  # inicializujem pravou podformulou, horsie to uz nebude
+            mc_data[state][repr(self)] = mc_data[state][repr(self.right)]
+        while queue:
+            state = queue.pop()
+            succs = ks.stg.graph.successors(state)
+            min_until_nexts = min([mc_data[s][repr(self)] for s in succs])  # najdem najhorsi path ktory zo mna vychadza
+            sr, su = mc_data[state][repr(self.right)], mc_data[state][repr(self)]
+            extend = min(sr, min_until_nexts)  # skusim ho predlzit o sucastny stav
+            if extend > su:  # ak je predlzenie lepsie ako sucastna hodnota tak ju prepisem a notifikujem predchodcov
+                mc_data[state][repr(self)] = extend
+                queue.update(ks.stg.graph.predecessors(state))
+
+
 class EU(StateFormula):
     def __init__(self, left: StateFormula, right: StateFormula):
         self.left = left
@@ -377,7 +388,18 @@ class EU(StateFormula):
         return sub_left + sub_right + [self]
 
     def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
-        pass
+        queue = set(ks.stg.states)
+        for state in ks.stg.states:  # inicializujem pravou podformulou, horsie to uz nebude
+            mc_data[state][repr(self)] = mc_data[state][repr(self.right)]
+        while queue:
+            state = queue.pop()
+            succs = ks.stg.graph.successors(state)
+            max_until_nexts = max([mc_data[s][repr(self)] for s in succs]) # najdem najlepsi path ktory zo mna vychadza
+            sr, su = mc_data[state][repr(self.right)], mc_data[state][repr(self)]
+            extend = min(sr, max_until_nexts)  # skusim ho predlzit o sucastny stav
+            if extend > su:  # ak je predlzenie lepsie ako sucastna hodnota tak ju prepisem a notifikujem predchodcov
+                mc_data[state][repr(self)] = extend
+                queue.update(ks.stg.graph.predecessors(state))
 
 
 class AW(StateFormula):
@@ -397,7 +419,15 @@ class AW(StateFormula):
         return sub_left + sub_right + [self]
 
     def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
-        pass
+        ag = AG(self.left)
+        au = AU(self.left, self.right)
+        for state in ks.stg.states:  # pre eu netreba, tam sa nastavi right aj tak
+            mc_data[state][repr(ag)] = None
+
+        ag.evaluate(ks, mc_data)
+        au.evaluate(ks, mc_data)
+        for state in ks.stg.states:  # nastavim maximom z tych dvoch
+            mc_data[state][repr(self)] = max(mc_data[state][repr(ag)], mc_data[state][repr(au)])
 
 
 class EW(StateFormula):
@@ -417,4 +447,14 @@ class EW(StateFormula):
         return sub_left + sub_right + [self]
 
     def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
-        pass
+        eg = EG(self.left)
+        eu = EU(self.left, self.right)
+        for state in ks.stg.states:  # pre eu netreba, tam sa nastavi right aj tak
+            mc_data[state][repr(eg)] = None
+
+        eg.evaluate(ks, mc_data)
+        eu.evaluate(ks, mc_data)
+        for state in ks.stg.states:  # nastavim maximom z tych dvoch
+            mc_data[state][repr(self)] = max(mc_data[state][repr(eg)], mc_data[state][repr(eu)])
+
+
