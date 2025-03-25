@@ -1,9 +1,8 @@
 from lark import Lark, Transformer
-from src.ctl_formulae import *
-
+from src.ctl_formulae import AtomicProposition, Negation, Union, Intersection, Conjunction, Disjunction, EX, AX, EF, AF, \
+    EG, AG, EU, AU, EW, AW
 
 grammar = r"""
-    
     start: state_formula
 
     ?state_formula : state_formula_c
@@ -13,7 +12,7 @@ grammar = r"""
                   | state_formula_c "||" atomic_formula -> disjunction
                   | "(" state_formula ")" //-> parenthesis
                   | atomic_formula
-                  
+
     ?state_formula_c : state_formula_c "&&" state_formula_c -> conjunction
                   | state_formula_c "||" state_formula_c -> disjunction
                   | "AG" state_formula   -> ag
@@ -27,18 +26,18 @@ grammar = r"""
                   | "A" state_formula "W" state_formula  -> aw
                   | "E" state_formula "W" state_formula -> ew
                   | "(" state_formula_c ")" -> parenthesis
-                  
+
     ?atomic_formula : "!" atomic_formula -> negation
                    | atomic_formula "&" atomic_formula -> intersection
                    | atomic_formula "|" atomic_formula -> union
                    | ap
                    | "(" atomic_formula ")" -> parenthesis
 
-    ap: CNAME OPERATOR VALUE -> ap
+    ap: NAME OPERATOR VALUE -> ap
 
     OPERATOR: "<=" | ">="
     VALUE: /[0-9]+/
-    CNAME: /[a-zA-Z_][a-zA-Z0-9_]*/
+    NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
 
     %import common.NUMBER
     %import common.WS
@@ -47,107 +46,175 @@ grammar = r"""
 
 
 class FormulaTransformer(Transformer):
+    """
+    Transforms a parsed formula tree into the corresponding StateFormula objects.
+
+    @param args: List of arguments (children nodes) from the parsing tree.
+    @return: Transformed object (StateFormula).
+    """
+
     def ap(self, args):
-        variable, operator, value = args
-        return AtomicProposition(variable, operator, value)
+        """
+        Transforms atomic proposition into an AtomicProposition object.
+
+        @param args: List of arguments [variable_name, operator, value] for the atomic proposition.
+        @return: AtomicProposition object.
+        """
+        variable_name, operator, value = args
+        return AtomicProposition(variable_name, operator, value)
 
     def negation(self, args):
-        # Wrap only the atomic proposition inside negation
+        """
+        Transforms negation into a Negation object.
+
+        @param args: List containing the negated formula.
+        @return: Negation object.
+        """
         return Negation(args[0])
 
     def union(self, args):
+        """
+        Transforms union (|) into a Union object.
+
+        @param args: List of arguments [formula_1, formula_2] for the union operation.
+        @return: Union object.
+        """
         return Union(args[0], args[1])
 
     def intersection(self, args):
+        """
+        Transforms intersection (&) into an Intersection object.
+
+        @param args: List of arguments [formula_1, formula_2] for the intersection operation.
+        @return: Intersection object.
+        """
         return Intersection(args[0], args[1])
 
     def conjunction(self, args):
+        """
+        Transforms conjunction (&&) into a Conjunction object.
+
+        @param args: List of arguments [formula_1, formula_2] for the conjunction operation.
+        @return: Conjunction object.
+        """
         return Conjunction(args[0], args[1])
 
     def disjunction(self, args):
+        """
+        Transforms disjunction (||) into a Disjunction object.
+
+        @param args: List of arguments [formula_1, formula_2] for the disjunction operation.
+        @return: Disjunction object.
+        """
         return Disjunction(args[0], args[1])
 
     def ag(self, args):
+        """
+        Transforms AG (always globally) into an AG object.
+
+        @param args: List containing the formula to be globally true.
+        @return: AG object.
+        """
         return AG(args[0])
 
     def af(self, args):
+        """
+        Transforms AF (always eventually) into an AF object.
+
+        @param args: List containing the formula to be eventually true.
+        @return: AF object.
+        """
         return AF(args[0])
 
     def ax(self, args):
+        """
+        Transforms AX (always next) into an AX object.
+
+        @param args: List containing the formula to be true at the next state.
+        @return: AX object.
+        """
         return AX(args[0])
 
     def eg(self, args):
+        """
+        Transforms EG (exists globally) into an EG object.
+
+        @param args: List containing the formula to exist globally.
+        @return: EG object.
+        """
         return EG(args[0])
 
     def ef(self, args):
+        """
+        Transforms EF (exists eventually) into an EF object.
+
+        @param args: List containing the formula to exist eventually.
+        @return: EF object.
+        """
         return EF(args[0])
 
     def ex(self, args):
+        """
+        Transforms EX (exists next) into an EX object.
+
+        @param args: List containing the formula to exist in the next state.
+        @return: EX object.
+        """
         return EX(args[0])
 
     def au(self, args):
+        """
+        Transforms AU (always until) into an AU object.
+
+        @param args: List containing the formulas to be true until a condition is met.
+        @return: AU object.
+        """
         return AU(args[0], args[1])
 
     def eu(self, args):
+        """
+        Transforms EU (exists until) into an EU object.
+
+        @param args: List containing the formulas to exist until a condition is met.
+        @return: EU object.
+        """
         return EU(args[0], args[1])
 
     def aw(self, args):
+        """
+        Transforms AW (always weakly until) into an AW object.
+
+        @param args: List containing the formulas to be true weakly until a condition is met.
+        @return: AW object.
+        """
         return AW(args[0], args[1])
 
     def ew(self, args):
+        """
+        Transforms EW (exists weakly until) into an EW object.
+
+        @param args: List containing the formulas to exist weakly until a condition is met.
+        @return: EW object.
+        """
         return EW(args[0], args[1])
 
     def parenthesis(self, args):
-        # When parentheses are used, we return the wrapped state formula.
+        """
+        Returns the formula inside parentheses without modification.
+
+        @param args: List containing the formula inside parentheses.
+        @return: The formula inside parentheses.
+        """
         return args[0]
 
 
-# Create the parser
-
-
-examples = [
-    # Conjunction of two state formulas
-    "AG (x1 >= 1) && EF (x2 <= 5)",
-
-    # Disjunction of two state formulas
-    "AX (x3 >= 2) || EG (x4 <= 7)",
-
-    # A temporal operator on a conjunction of two state formulas
-    "AF (AG (x1 >= 3) && EF (x2 <= 2))",
-
-    # Conjunction of atomic and state formula (mix)
-    "(x1 >= 2) && AF (x2 >= 1)",
-
-    # Disjunction of atomic and state formula (mix)
-    "(x3 <= 4) || EG (x5 >= 8)",
-
-    # Nested temporal operators with conjunction inside
-    "AG (AX (x1 >= 2) && EX (x2 <= 7))",
-
-    # Until operator where left is a state formula and right is an atomic proposition
-    "A (AG (x1 >= 4)) U (x2 <= 3)",
-
-    # Weak until with mixed atomic/state formulas
-    "E (x1 >= 2) W (AF (x3 <= 6))",
-
-    # Negation of conjunction of a state formula and an atomic proposition
-    "EG (x1 >= 4) & !(x2 <= 5)",
-
-    # Nested negation and union inside temporal operators
-    "AF (!(x1 >= 4 | x2 <= 3))",
-
-    # Deeply nested temporal operators with conjunctions
-    "EG (AF (AX (x1 >= 5) && EX (x2 <= 6)))",
-
-    # Disjunction at the top level combining state formulas
-    "AF (x1 >= 3) || EG (x2 <= 8)",
-
-    # Negation of disjunction of two state formulas
-    "(AF !(x1 >= 3) || EF (x2 <= 4))"
-]
-
-
 def parse_formula(formula):
+    """
+    Parses a CTL formula string and returns the corresponding formula tree.
+
+    @param formula: The CTL formula string to be parsed.
+    @return: The parsed StateFormula object.
+    """
     parser = Lark(grammar, start='start', parser='lalr', transformer=FormulaTransformer())
     tree = parser.parse(formula)
     return tree.children[0]

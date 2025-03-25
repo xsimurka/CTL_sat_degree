@@ -206,10 +206,6 @@ class StateTransitionGraph:
 
         return successors
 
-    def get_transition_graph(self):
-        """Return the constructed state transition graph."""
-        return self.graph
-
 
 def is_context_satisfied(context_intervals, regulator_state):
     """

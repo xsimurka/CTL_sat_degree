@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
+from typing import List
 from src.quantitative_ctl import KripkeStructure
 from src.satisfaction_degree import weighted_signed_distance, find_extreme_state
-from src.custom_types import *
-
+from src.custom_types import DomainOfValidityType, FormulaEvaluationType, MaxActivitiesType
 
 
 class StateFormula(ABC):
@@ -16,25 +16,25 @@ class StateFormula(ABC):
         pass
 
     @abstractmethod
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         pass
 
 
 class AtomicFormula(StateFormula):
     @abstractmethod
-    def yield_dov(self, dov: DomainOfValidity, max_activities: MaxActivitiesType) -> DomainOfValidity:
+    def yield_dov(self, dov: DomainOfValidityType, max_activities: MaxActivitiesType) -> DomainOfValidityType:
         pass
 
     def get_subformulae(self) -> List['StateFormula']:
         return [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         dov = [list(range(max_value + 1)) for max_value in ks.stg.variables.values()]
         for state in ks.stg.states:
             d = self.yield_dov(dov, ks.stg.variables)
             wsd = weighted_signed_distance(d, state, ks.stg.variables.values())
             ext_s, ext_wsd = find_extreme_state(d, ks.stg.variables.values(), wsd >= 0)
-            mc_data[state][repr(self)] = wsd / ext_wsd
+            formulae_evaluations[state][repr(self)] = wsd / ext_wsd
 
 
 class AtomicProposition(AtomicFormula):
@@ -47,7 +47,7 @@ class AtomicProposition(AtomicFormula):
     def __repr__(self) -> str:
         return f"({self.variable} {self.operator} {self.value})"
 
-    def yield_dov(self, dov: DomainOfValidity, max_activities: MaxActivitiesType) -> DomainOfValidity:
+    def yield_dov(self, dov: DomainOfValidityType, max_activities: MaxActivitiesType) -> DomainOfValidityType:
         new_dov = deepcopy(dov)
         idx = list(max_activities.keys()).index(self.variable)
         max_val = max_activities[self.variable]
@@ -79,7 +79,7 @@ class Negation(AtomicFormula):
     def __repr__(self) -> str:
         return f"!{repr(self.operand)}"
 
-    def yield_dov(self, dov: DomainOfValidity, max_activities: MaxActivitiesType) -> DomainOfValidity:
+    def yield_dov(self, dov: DomainOfValidityType, max_activities: MaxActivitiesType) -> DomainOfValidityType:
         raise NotImplementedError("Negation must be eliminated before calling yield_dov.")
 
     def eliminate_negation(self) -> AtomicFormula:
@@ -110,7 +110,7 @@ class Union(AtomicFormula):
     def __repr__(self) -> str:
         return f"({repr(self.left)} | {repr(self.right)})"
 
-    def yield_dov(self, dov: DomainOfValidity, max_activities: MaxActivitiesType) -> DomainOfValidity:
+    def yield_dov(self, dov: DomainOfValidityType, max_activities: MaxActivitiesType) -> DomainOfValidityType:
         left_dov = self.left.yield_dov(dov, max_activities)
         right_dov = self.right.yield_dov(dov, max_activities)
 
@@ -133,7 +133,7 @@ class Intersection(AtomicFormula):
     def __repr__(self) -> str:
         return f"({repr(self.left)} & {repr(self.right)})"
 
-    def yield_dov(self, dov: DomainOfValidity, max_activities: MaxActivitiesType) -> DomainOfValidity:
+    def yield_dov(self, dov: DomainOfValidityType, max_activities: MaxActivitiesType) -> DomainOfValidityType:
         left_dov = self.left.yield_dov(dov, max_activities)
         right_dov = self.right.yield_dov(dov, max_activities)
         combined_dov = [
@@ -158,9 +158,9 @@ class Boolean(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         for state in ks.stg.states:
-            mc_data[state][repr(self)] = 1 if self.value else -1
+            formulae_evaluations[state][repr(self)] = 1 if self.value else -1
 
 
 class Conjunction(StateFormula):
@@ -179,9 +179,9 @@ class Conjunction(StateFormula):
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         for state in ks.stg.states:
-            mc_data[state][repr(self)] = min(mc_data[state][repr(self.left)], mc_data[state][repr(self.right)])
+            formulae_evaluations[state][repr(self)] = min(formulae_evaluations[state][repr(self.left)], formulae_evaluations[state][repr(self.right)])
 
 
 class Disjunction(StateFormula):
@@ -200,9 +200,9 @@ class Disjunction(StateFormula):
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         for state in ks.stg.states:
-            mc_data[state][repr(self)] = max(mc_data[state][repr(self.left)], mc_data[state][repr(self.right)])
+            formulae_evaluations[state][repr(self)] = max(formulae_evaluations[state][repr(self.left)], formulae_evaluations[state][repr(self.right)])
 
 
 # Temporal Operators
@@ -219,14 +219,14 @@ class AG(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         queue = set(ks.stg.states)
         while queue:
             state = queue.pop()
             succs = ks.stg.graph.successors(state)
-            m = min(mc_data[s][repr(self.operand)] for s in succs)
-            if mc_data[state][repr(self)] is None or m < mc_data[state][repr(self)]:
-                mc_data[state][repr(self)] = m
+            m = min(formulae_evaluations[s][repr(self.operand)] for s in succs)
+            if formulae_evaluations[state][repr(self)] is None or m < formulae_evaluations[state][repr(self)]:
+                formulae_evaluations[state][repr(self)] = m
                 queue.update(ks.stg.graph.predecessors(state))
 
 
@@ -243,14 +243,14 @@ class AF(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         queue = set(ks.stg.states)
         while queue:
             state = queue.pop()
             succs = ks.stg.graph.successors(state)
-            m = min(mc_data[s][repr(self.operand)] for s in succs)
-            if mc_data[state][repr(self)] is None or m > mc_data[state][repr(self)]:
-                mc_data[state][repr(self)] = m
+            m = min(formulae_evaluations[s][repr(self.operand)] for s in succs)
+            if formulae_evaluations[state][repr(self)] is None or m > formulae_evaluations[state][repr(self)]:
+                formulae_evaluations[state][repr(self)] = m
                 queue.update(ks.stg.graph.predecessors(state))
 
 
@@ -267,10 +267,10 @@ class AX(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         for state in ks.stg.states:
             succs = ks.stg.graph.successors(state)
-            mc_data[state][repr(self)] = min(mc_data[s][repr(self.operand)] for s in succs)
+            formulae_evaluations[state][repr(self)] = min(formulae_evaluations[s][repr(self.operand)] for s in succs)
 
 
 class EG(StateFormula):
@@ -286,14 +286,14 @@ class EG(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         queue = set(ks.stg.states)
         while queue:
             state = queue.pop()
             succs = ks.stg.graph.successors(state)
-            m = max(mc_data[s][repr(self.operand)] for s in succs)
-            if mc_data[state][repr(self)] is None or m < mc_data[state][repr(self)]:
-                mc_data[state][repr(self)] = m
+            m = max(formulae_evaluations[s][repr(self.operand)] for s in succs)
+            if formulae_evaluations[state][repr(self)] is None or m < formulae_evaluations[state][repr(self)]:
+                formulae_evaluations[state][repr(self)] = m
                 queue.update(ks.stg.graph.predecessors(state))
 
 
@@ -310,14 +310,14 @@ class EF(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         queue = set(ks.stg.states)
         while queue:
             state = queue.pop()
             succs = ks.stg.graph.successors(state)
-            m = max(mc_data[s][repr(self.operand)] for s in succs)
-            if mc_data[state][repr(self)] is None or m > mc_data[state][repr(self)]:
-                mc_data[state][repr(self)] = m
+            m = max(formulae_evaluations[s][repr(self.operand)] for s in succs)
+            if formulae_evaluations[state][repr(self)] is None or m > formulae_evaluations[state][repr(self)]:
+                formulae_evaluations[state][repr(self)] = m
                 queue.update(ks.stg.graph.predecessors(state))
 
 
@@ -334,10 +334,10 @@ class EX(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         for state in ks.stg.states:
             succs = ks.stg.graph.successors(state)
-            mc_data[state][repr(self)] = max(mc_data[s][repr(self.operand)] for s in succs)
+            formulae_evaluations[state][repr(self)] = max(formulae_evaluations[s][repr(self.operand)] for s in succs)
 
 
 class AU(StateFormula):
@@ -356,18 +356,18 @@ class AU(StateFormula):
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         queue = set(ks.stg.states)
-        for state in ks.stg.states:  # inicializujem pravou podformulou, horsie to uz nebude
-            mc_data[state][repr(self)] = mc_data[state][repr(self.right)]
+        for state in ks.stg.states:
+            formulae_evaluations[state][repr(self)] = formulae_evaluations[state][repr(self.right)]
         while queue:
             state = queue.pop()
             succs = ks.stg.graph.successors(state)
-            min_until_nexts = min([mc_data[s][repr(self)] for s in succs])  # najdem najhorsi path ktory zo mna vychadza
-            sr, su = mc_data[state][repr(self.right)], mc_data[state][repr(self)]
-            extend = min(sr, min_until_nexts)  # skusim ho predlzit o sucastny stav
-            if extend > su:  # ak je predlzenie lepsie ako sucastna hodnota tak ju prepisem a notifikujem predchodcov
-                mc_data[state][repr(self)] = extend
+            min_until_nexts = min([formulae_evaluations[s][repr(self)] for s in succs])
+            sr, su = formulae_evaluations[state][repr(self.right)], formulae_evaluations[state][repr(self)]
+            extend = min(sr, min_until_nexts)
+            if extend > su:
+                formulae_evaluations[state][repr(self)] = extend
                 queue.update(ks.stg.graph.predecessors(state))
 
 
@@ -387,18 +387,18 @@ class EU(StateFormula):
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         queue = set(ks.stg.states)
-        for state in ks.stg.states:  # inicializujem pravou podformulou, horsie to uz nebude
-            mc_data[state][repr(self)] = mc_data[state][repr(self.right)]
+        for state in ks.stg.states:
+            formulae_evaluations[state][repr(self)] = formulae_evaluations[state][repr(self.right)]
         while queue:
             state = queue.pop()
             succs = ks.stg.graph.successors(state)
-            max_until_nexts = max([mc_data[s][repr(self)] for s in succs]) # najdem najlepsi path ktory zo mna vychadza
-            sr, su = mc_data[state][repr(self.right)], mc_data[state][repr(self)]
-            extend = min(sr, max_until_nexts)  # skusim ho predlzit o sucastny stav
-            if extend > su:  # ak je predlzenie lepsie ako sucastna hodnota tak ju prepisem a notifikujem predchodcov
-                mc_data[state][repr(self)] = extend
+            max_until_nexts = max([formulae_evaluations[s][repr(self)] for s in succs])
+            sr, su = formulae_evaluations[state][repr(self.right)], formulae_evaluations[state][repr(self)]
+            extend = min(sr, max_until_nexts)
+            if extend > su:
+                formulae_evaluations[state][repr(self)] = extend
                 queue.update(ks.stg.graph.predecessors(state))
 
 
@@ -418,16 +418,16 @@ class AW(StateFormula):
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         ag = AG(self.left)
         au = AU(self.left, self.right)
-        for state in ks.stg.states:  # pre eu netreba, tam sa nastavi right aj tak
-            mc_data[state][repr(ag)] = None
+        for state in ks.stg.states:
+            formulae_evaluations[state][repr(ag)] = None
 
-        ag.evaluate(ks, mc_data)
-        au.evaluate(ks, mc_data)
-        for state in ks.stg.states:  # nastavim maximom z tych dvoch
-            mc_data[state][repr(self)] = max(mc_data[state][repr(ag)], mc_data[state][repr(au)])
+        ag.evaluate(ks, formulae_evaluations)
+        au.evaluate(ks, formulae_evaluations)
+        for state in ks.stg.states:
+            formulae_evaluations[state][repr(self)] = max(formulae_evaluations[state][repr(ag)], formulae_evaluations[state][repr(au)])
 
 
 class EW(StateFormula):
@@ -446,15 +446,15 @@ class EW(StateFormula):
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
 
-    def evaluate(self, ks: KripkeStructure, mc_data: MCDataType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
         eg = EG(self.left)
         eu = EU(self.left, self.right)
-        for state in ks.stg.states:  # pre eu netreba, tam sa nastavi right aj tak
-            mc_data[state][repr(eg)] = None
+        for state in ks.stg.states:
+            formulae_evaluations[state][repr(eg)] = None
 
-        eg.evaluate(ks, mc_data)
-        eu.evaluate(ks, mc_data)
-        for state in ks.stg.states:  # nastavim maximom z tych dvoch
-            mc_data[state][repr(self)] = max(mc_data[state][repr(eg)], mc_data[state][repr(eu)])
+        eg.evaluate(ks, formulae_evaluations)
+        eu.evaluate(ks, formulae_evaluations)
+        for state in ks.stg.states:
+            formulae_evaluations[state][repr(self)] = max(formulae_evaluations[state][repr(eg)], formulae_evaluations[state][repr(eu)])
 
 
