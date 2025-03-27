@@ -1,10 +1,11 @@
 from bisect import bisect_left
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from math import inf
 from src.custom_types import DomainType, DomainOfValidityType, StateType
+from src.domain_of_validity import DomainOfValidity
 
 
-def weighted_signed_distance(dov: DomainOfValidityType, state: StateType, max_act_values: List[int]) -> float:
+def weighted_signed_distance(dov: DomainOfValidity, state: StateType, max_act_values: Dict[str, int]) -> float:
     """
     Computes the weighted signed distance of a state from the domain of admissible values.
 
@@ -19,19 +20,22 @@ def weighted_signed_distance(dov: DomainOfValidityType, state: StateType, max_ac
              - Positive → Minimum weighted depth (state is inside).
              - Negative → Sum of weighted distances (state is outside).
     """
-    weighted_depths = []
-    weighted_dists = []
 
-    for admissible_values, s_val, max_act_val in zip(dov, state, max_act_values):
-        weight = 1 / (1 + max_act_val)
-        pos = bisect_left(admissible_values, s_val)
+    for subspace in dov.subspaces:
+        weighted_depths = []
+        weighted_dists = []
 
-        if is_inside_dov(admissible_values, s_val, pos):
-            weighted_depths.append(weight * compute_dimension_depth(admissible_values, s_val, pos, max_act_val))
-        else:
-            weighted_dists.append(weight * compute_dimension_dist(admissible_values, s_val, pos))
+        for s_val, s_var in zip(state, max_act_values.keys()):
+            admissible_values = subspace.get(s_var, list(range(max_act_values.get(s_var) + 1)))
+            weight = 1 / (1 + max_act_values.get(s_var))
+            pos = bisect_left(admissible_values, s_val)
 
-    return min(weighted_depths) if not weighted_dists else -sum(weighted_dists)
+            if is_inside_dov(admissible_values, s_val, pos):
+                weighted_depths.append(weight * compute_dimension_depth(admissible_values, s_val, pos, max_act_values.get(s_var)))
+            else:
+                weighted_dists.append(weight * compute_dimension_dist(admissible_values, s_val, pos))
+
+        return min(weighted_depths) if not weighted_dists else -sum(weighted_dists)
 
 
 def is_inside_dov(admissible_values: DomainType, s_val: int, pos: int) -> bool:
@@ -133,7 +137,7 @@ def find_max_depth_state(admissible_values: DomainType, candidates: List[int], m
 
     @return: Tuple (best_state, max_depth).
     """
-    best_v, best_d = None, -inf
+    best_v, best_d = None, 0
     for s in candidates:
         pos = bisect_left(admissible_values, s)
         depth = compute_dimension_depth(admissible_values, s, pos, max_act_val)
@@ -152,7 +156,7 @@ def find_max_dist_state(admissible_values: DomainType, candidates: List[int]) ->
 
     @return: Tuple (best_state, max_distance).
     """
-    best_v, best_d = None, -inf
+    best_v, best_d = None, 0
     for s in candidates:
         pos = bisect_left(admissible_values, s)
         distance = compute_dimension_dist(admissible_values, s, pos)
