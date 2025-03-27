@@ -137,10 +137,10 @@ class StateTransitionGraph:
         """
         Initialize the state transition graph from a MultivaluedGRN object.
         """
-        self.variables = grn.variables
-        self.regulations = {reg["target"]: reg for reg in grn.regulations}
-        self.states = list(self._generate_all_states())
-        self.graph = self._construct_graph()
+        self.variables = None #grn.variables
+        self.regulations = None #{reg["target"]: reg for reg in grn.regulations}
+        self.states = None #list(self._generate_all_states())
+        self.graph = None #self._construct_graph()
 
     def _generate_all_states(self):
         """

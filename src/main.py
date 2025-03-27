@@ -3,8 +3,8 @@ from math import inf
 from src.multivalued_network import StateTransitionGraph, MvGRNParser
 from src.lark_ctl_parser import parse_formula
 from src.quantitative_ctl import model_check, KripkeStructure
-from src.ctl_formulae import StateFormula
 import itertools
+import networkx as nx
 
 json_string = '''
 {
@@ -146,7 +146,7 @@ def format_result(formulae_evaluations, initial_states, formula) -> None:
 
     print("Formula:", repr(formula))
     print("Best value", maximum, "in state", max_state)
-    print("Best value", minimum, "in state", min_state)
+    print("Worst value", minimum, "in state", min_state)
     print("Average value among initial states:", cumulative / len(initial_states))
 
 
@@ -157,21 +157,82 @@ def main(json_file):
 
     @param json_file: Path to the JSON file containing input data
     """
-    with open(json_file, 'r') as file:
-        json_data = json.load(file)
+    # with open(json_file, 'r') as file:
+    #     json_data = json.load(file)
 
-    formula = json_data.get("formula")
-    parsed_formula: StateFormula = parse_formula(formula)
-    positive_formula: StateFormula = parsed_formula.eliminate_negation()
-    initial_states = json_data.get("initial_states")
-    network_data = json_data.get("network")
-    mvgrn = MvGRNParser(network_data).parse()
-    validate_initial_states(initial_states, mvgrn)
-    stg = StateTransitionGraph(mvgrn)
-    initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
-    ks = KripkeStructure(stg, initial_states)
+    # formula = json_data.get("formula")
+    # parsed_formula: StateFormula = parse_formula(formula)
+    # positive_formula: StateFormula = parsed_formula.eliminate_negation()
+    # initial_states = json_data.get("initial_states")
+    # network_data = json_data.get("network")
+    # mvgrn = MvGRNParser(network_data).parse()
+    # validate_initial_states(initial_states, mvgrn)
+    # stg = StateTransitionGraph(mvgrn)
+    variables = {
+        "a": 2,  # Activity levels: 0, 1, 2
+        "b": 3,  # Activity levels: 0, 1, 2, 3
+        "c": 2  # Activity levels: 0, 1, 2
+    }
+
+    # Define regulations (simplified for generating transitions)
+    regulations = {
+        "a": {"b": [1, 3]},  # A is regulated by B's levels
+        "b": {"a": [1], "c": [2]},  # B is regulated by A and C
+        "c": {"b": [2]}  # C is regulated by B
+    }
+
+    # Generate all possible states
+    all_states = list(itertools.product(*[range(v + 1) for v in variables.values()]))
+
+    # Create a directed graph
+    G = nx.DiGraph()
+    G.add_nodes_from(all_states)
+
+    # Function to generate transitions based on regulations
+    def generate_successors(state):
+        successors = []
+        state_dict = {gene: state[i] for i, gene in enumerate(variables)}
+
+        for gene, regs in regulations.items():
+            idx = list(variables.keys()).index(gene)
+            current_value = state[idx]
+
+            for regulator, thresholds in regs.items():
+                reg_idx = list(variables.keys()).index(regulator)
+                reg_value = state[reg_idx]
+
+                for threshold in thresholds:
+                    if reg_value >= threshold:  # Example condition for increasing activity
+                        if current_value < variables[gene]:  # Ensure we stay within bounds
+                            new_state = list(state)
+                            new_state[idx] += 1
+                            successors.append(tuple(new_state))
+                    if reg_value <= threshold:  # Example condition for decreasing activity
+                        if current_value > 0:
+                            new_state = list(state)
+                            new_state[idx] -= 1
+                            successors.append(tuple(new_state))
+
+        if not successors:
+            successors.append(state)
+        return list(set(successors))  # Remove duplicate transitions
+
+    # Add transitions to the graph
+    for state in all_states:
+        successors = generate_successors(state)
+        for succ in successors:
+            G.add_edge(state, succ)
+
+    stg = StateTransitionGraph(None)
+    stg.variables = variables
+    stg.states = all_states
+    stg.graph = G
+    parsed_formula = parse_formula("A (a <= 0) U (b <= 2)")
+    positive_formula = parsed_formula.eliminate_negation()
+    #initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
+    ks = KripkeStructure(stg, None)
     formulae_evaluations = model_check(ks, positive_formula)
-    format_result(formulae_evaluations, initial_states, positive_formula)
+    format_result(formulae_evaluations, ks.init_states, positive_formula)
 
 
 if __name__ == "__main__":

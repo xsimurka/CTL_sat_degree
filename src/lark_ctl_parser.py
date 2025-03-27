@@ -61,7 +61,7 @@ class FormulaTransformer(Transformer):
         @return: AtomicProposition object.
         """
         variable_name, operator, value = args
-        return AtomicProposition(variable_name, operator, value)
+        return AtomicProposition(str(variable_name), str(operator), int(value))
 
     def negation(self, args):
         """

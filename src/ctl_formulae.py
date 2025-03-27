@@ -1,3 +1,4 @@
+import math
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import List
@@ -87,9 +88,16 @@ class AtomicFormula(StateFormula):
         domains = [list(range(max_value + 1)) for max_value in ks.stg.variables.values()]
         dov = self.yield_dov(domains, ks.stg.variables)
         for state in ks.stg.states:
-            wsd = weighted_signed_distance(dov, state, ks.stg.variables.values())
+            if state == (1,1,1):
+                x = math.inf
+
+            wsd = weighted_signed_distance(dov, state, ks.stg.variables)
             _, ext_wsd = find_extreme_state(dov, ks.stg.variables.values(), wsd >= 0)
-            formulae_evaluations[state][repr(self)] = wsd / ext_wsd
+            formulae_evaluations[state][repr(self)] = wsd / ext_wsd if ext_wsd > 0 else 1
+
+    @abstractmethod
+    def negate(self):
+        pass
 
 
 class AtomicProposition(AtomicFormula):
@@ -118,13 +126,13 @@ class AtomicProposition(AtomicFormula):
         return new_dov
 
     def eliminate_negation(self) -> 'AtomicFormula':
+        return self
+
+    def negate(self):
         if self.operator == ">=":
             return AtomicProposition(self.variable, "<=", self.value - 1)
         elif self.operator == "<=":
             return AtomicProposition(self.variable, ">=", self.value + 1)
-        else:
-            raise ValueError(f"Unsupported operator '{self.operator}' for negation.")
-
 
 
 class Negation(AtomicFormula):
@@ -139,23 +147,15 @@ class Negation(AtomicFormula):
         raise NotImplementedError("Negation must be eliminated before calling yield_dov.")
 
     def eliminate_negation(self) -> AtomicFormula:
-        if isinstance(self.operand, AtomicProposition):
-            return self.operand.eliminate_negation()
-        elif isinstance(self.operand, Negation):
+        if isinstance(self.operand, Negation):
             return self.operand.operand.eliminate_negation()
-        elif isinstance(self.operand, Union):
-            left_neg = Negation(self.operand.left).eliminate_negation()
-            right_neg = Negation(self.operand.right).eliminate_negation()
-            return Intersection(left_neg, right_neg)
-        elif isinstance(self.operand, Intersection):
-            left_neg = Negation(self.operand.left).eliminate_negation()
-            right_neg = Negation(self.operand.right).eliminate_negation()
-            return Union(left_neg, right_neg)
-        else:
-            raise ValueError("Unsupported operand type in Negation elimination.")
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         raise NotImplementedError("Negation must be eliminated before calling get_subformulae.")
+
+    def negate(self):
+        return self.operand.negate()
 
 
 class Union(AtomicFormula):
@@ -179,7 +179,16 @@ class Union(AtomicFormula):
         return combined_dov
 
     def eliminate_negation(self) -> AtomicFormula:
-        return Union(self.left.eliminate_negation(), self.right.eliminate_negation())
+        if isinstance(self.left, Negation):
+            self.left = self.left.negate()
+        if isinstance(self.right, Negation):
+            self.right = self.right.negate()
+        self.left = self.left.eliminate_negation()
+        self.right = self.right.eliminate_negation()
+        return self
+
+    def negate(self):
+        return Intersection(Negation(self.left), Negation(self.right))
 
 
 class Intersection(AtomicFormula):
@@ -200,7 +209,16 @@ class Intersection(AtomicFormula):
         return combined_dov
 
     def eliminate_negation(self) -> AtomicFormula:
-        return Intersection(self.left.eliminate_negation(), self.right.eliminate_negation())
+        if isinstance(self.left, Negation):
+            self.left = self.left.negate()
+        if isinstance(self.right, Negation):
+            self.right = self.right.negate()
+        self.left = self.left.eliminate_negation()
+        self.right = self.right.eliminate_negation()
+        return self
+
+    def negate(self):
+        return Union(Negation(self.left), Negation(self.right))
 
 
 class Boolean(StateFormula):
@@ -232,7 +250,13 @@ class Conjunction(StateFormula):
         return f"({repr(self.left)} && {repr(self.right)})"
 
     def eliminate_negation(self) -> 'StateFormula':
-        return Conjunction(self.left.eliminate_negation(), self.right.eliminate_negation())
+        if isinstance(self.left, Negation):
+            self.left = self.left.negate()
+        if isinstance(self.right, Negation):
+            self.right = self.right.negate()
+        self.left = self.left.eliminate_negation()
+        self.right = self.right.eliminate_negation()
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         sub_left = self.left.get_subformulae()
@@ -254,7 +278,13 @@ class Disjunction(StateFormula):
         return f"({repr(self.left)} || {repr(self.right)})"
 
     def eliminate_negation(self) -> 'StateFormula':
-        return Disjunction(self.left.eliminate_negation(), self.right.eliminate_negation())
+        if isinstance(self.left, Negation):
+            self.left = self.left.negate()
+        if isinstance(self.right, Negation):
+            self.right = self.right.negate()
+        self.left = self.left.eliminate_negation()
+        self.right = self.right.eliminate_negation()
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         sub_left = self.left.get_subformulae()
@@ -274,7 +304,10 @@ class AG(StateFormula):
         return f"AG ({repr(self.operand)})"
 
     def eliminate_negation(self) -> 'StateFormula':
-        return AG(self.operand.eliminate_negation())
+        if isinstance(self.operand, Negation):
+            self.operand = self.operand.negate()
+        self.operand = self.operand.eliminate_negation()
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
@@ -299,7 +332,10 @@ class EG(StateFormula):
         return f"EG ({repr(self.operand)})"
 
     def eliminate_negation(self) -> 'StateFormula':
-        return EG(self.operand.eliminate_negation())
+        if isinstance(self.operand, Negation):
+            self.operand = self.operand.negate()
+        self.operand = self.operand.eliminate_negation()
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
@@ -324,7 +360,10 @@ class AF(StateFormula):
         return f"AF ({repr(self.operand)})"
 
     def eliminate_negation(self) -> 'StateFormula':
-        return AF(self.operand.eliminate_negation())
+        if isinstance(self.operand, Negation):
+            self.operand = self.operand.negate()
+        self.operand = self.operand.eliminate_negation()
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
@@ -333,7 +372,7 @@ class AF(StateFormula):
         queue = set(ks.stg.states)
         while queue:
             state = queue.pop()
-            succs = ks.stg.graph.successors(state)
+            succs = list(ks.stg.graph.successors(state))
             min_value = min([formulae_evaluations[s][repr(self.operand)] for s in succs])  # all needs minimal value of operand
             # if state has no value yet or propagated minimal value is greater than actual best, replace it and notify predecessors
             if formulae_evaluations[state][repr(self)] is None or min_value > formulae_evaluations[state][repr(self)]:
@@ -349,7 +388,10 @@ class EF(StateFormula):
         return f"EF ({repr(self.operand)})"
 
     def eliminate_negation(self) -> 'StateFormula':
-        return EF(self.operand.eliminate_negation())
+        if isinstance(self.operand, Negation):
+            self.operand = self.operand.negate()
+        self.operand = self.operand.eliminate_negation()
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
@@ -374,7 +416,10 @@ class AX(StateFormula):
         return f"AX ({repr(self.operand)})"
 
     def eliminate_negation(self) -> 'StateFormula':
-        return AX(self.operand.eliminate_negation())
+        if isinstance(self.operand, Negation):
+            self.operand = self.operand.negate()
+        self.operand = self.operand.eliminate_negation()
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
@@ -393,7 +438,10 @@ class EX(StateFormula):
         return f"EX ({repr(self.operand)})"
 
     def eliminate_negation(self) -> 'StateFormula':
-        return EX(self.operand.eliminate_negation())
+        if isinstance(self.operand, Negation):
+            self.operand = self.operand.negate()
+        self.operand = self.operand.eliminate_negation()
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
@@ -413,7 +461,13 @@ class AU(StateFormula):
         return f"A ({repr(self.left)}) U ({repr(self.right)})"
 
     def eliminate_negation(self) -> 'StateFormula':
-        return AU(self.left.eliminate_negation(), self.right.eliminate_negation())
+        if isinstance(self.left, Negation):
+            self.left = self.left.negate()
+        if isinstance(self.right, Negation):
+            self.right = self.right.negate()
+        self.left = self.left.eliminate_negation()
+        self.right = self.right.eliminate_negation()
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         sub_left = self.left.get_subformulae()
@@ -445,7 +499,13 @@ class EU(StateFormula):
         return f"E ({repr(self.left)}) U ({repr(self.right)})"
 
     def eliminate_negation(self) -> 'StateFormula':
-        return EU(self.left.eliminate_negation(), self.right.eliminate_negation())
+        if isinstance(self.left, Negation):
+            self.left = self.left.negate()
+        if isinstance(self.right, Negation):
+            self.right = self.right.negate()
+        self.left = self.left.eliminate_negation()
+        self.right = self.right.eliminate_negation()
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         sub_left = self.left.get_subformulae()
@@ -477,7 +537,13 @@ class AW(StateFormula):
         return f"A ({repr(self.left)}) W ({repr(self.right)})"
 
     def eliminate_negation(self) -> 'StateFormula':
-        return AW(self.left.eliminate_negation(), self.right.eliminate_negation())
+        if isinstance(self.left, Negation):
+            self.left = self.left.negate()
+        if isinstance(self.right, Negation):
+            self.right = self.right.negate()
+        self.left = self.left.eliminate_negation()
+        self.right = self.right.eliminate_negation()
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         sub_left = self.left.get_subformulae()
@@ -510,7 +576,13 @@ class EW(StateFormula):
         return f"E ({repr(self.left)}) W ({repr(self.right)})"
 
     def eliminate_negation(self) -> 'StateFormula':
-        return EW(self.left.eliminate_negation(), self.right.eliminate_negation())
+        if isinstance(self.left, Negation):
+            self.left = self.left.negate()
+        if isinstance(self.right, Negation):
+            self.right = self.right.negate()
+        self.left = self.left.eliminate_negation()
+        self.right = self.right.eliminate_negation()
+        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         sub_left = self.left.get_subformulae()
