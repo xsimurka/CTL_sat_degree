@@ -150,7 +150,7 @@ def format_result(formulae_evaluations, initial_states, formula) -> None:
     print("Average value among initial states:", cumulative / len(initial_states))
 
 
-def main(json_file):
+def main2(json_file):
     """
     Main function to load data, parse formulas, validate states, generate states, build Kripke structure,
     perform model checking, and print results.
@@ -169,16 +169,14 @@ def main(json_file):
     # validate_initial_states(initial_states, mvgrn)
     # stg = StateTransitionGraph(mvgrn)
     variables = {
-        "a": 2,  # Activity levels: 0, 1, 2
-        "b": 3,  # Activity levels: 0, 1, 2, 3
-        "c": 2  # Activity levels: 0, 1, 2
+        "x": 16,  # Activity levels: 0, 1, 2
+        "y": 18,  # Activity levels: 0, 1, 2, 3
     }
 
     # Define regulations (simplified for generating transitions)
     regulations = {
-        "a": {"b": [1, 3]},  # A is regulated by B's levels
-        "b": {"a": [1], "c": [2]},  # B is regulated by A and C
-        "c": {"b": [2]}  # C is regulated by B
+        "x": {"y": [1, 3]},  # A is regulated by B's levels
+        "y": {"x": [1]},  # B is regulated by A and C
     }
 
     # Generate all possible states
@@ -227,7 +225,7 @@ def main(json_file):
     stg.variables = variables
     stg.states = all_states
     stg.graph = G
-    parsed_formula = parse_formula("A (a <= 0) U (b <= 2)")
+    parsed_formula = parse_formula("((x >= 5) & (x <= 12) & (y >= 4) & (y <= 10)) | (x >= 9) & (x <= 15) & (y >= 7) & (y <= 13)")
     positive_formula = parsed_formula.eliminate_negation()
     #initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
     ks = KripkeStructure(stg, None)
@@ -235,6 +233,29 @@ def main(json_file):
     format_result(formulae_evaluations, ks.init_states, positive_formula)
 
 
+def main(json_file):
+    """
+    Main function to load data, parse formulas, validate states, generate states, build Kripke structure,
+    perform model checking, and print results.
+
+    @param json_file: Path to the JSON file containing input data
+    """
+    with open(json_file, 'r') as file:
+        json_data = json.load(file)
+
+    formula = json_data.get("formula")
+    parsed_formula = parse_formula(formula)
+    positive_formula = parsed_formula.eliminate_negation()
+    network_data = json_data.get("network")
+    mvgrn = MvGRNParser(network_data).parse()
+    validate_initial_states(json_data.get("initial_states"), mvgrn)
+    stg = StateTransitionGraph(mvgrn)
+    initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
+    ks = KripkeStructure(stg, initial_states)
+    formulae_evaluations = model_check(ks, positive_formula)
+    format_result(formulae_evaluations, ks.init_states, positive_formula)
+
+
 if __name__ == "__main__":
     json_file = "path_to_your_json_file.json"  # Update this path to your JSON file
-    main(json_file)
+    main2(json_file)

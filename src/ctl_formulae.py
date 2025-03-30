@@ -2,8 +2,9 @@ import math
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import List
+from itertools import product
 from src.quantitative_ctl import KripkeStructure
-from src.satisfaction_degree import weighted_signed_distance, find_extreme_state
+from src.satisfaction_degree import weighted_distance, find_extreme_state, get_border_states
 from src.custom_types import DomainOfValidityType, FormulaEvaluationType, MaxActivitiesType
 
 
@@ -58,11 +59,10 @@ class AtomicFormula(StateFormula):
     """
 
     @abstractmethod
-    def yield_dov(self, dov: DomainOfValidityType, max_activities: MaxActivitiesType) -> DomainOfValidityType:
+    def yield_dov(self, max_activities: MaxActivitiesType) -> DomainOfValidityType:
         """
         Computes the domain of validity for the atomic formula.
 
-        @param dov: The initial domain of validity.
         @param max_activities: The maximum possible values for each variable.
         @return: Updated domain of validity.
         """
@@ -85,19 +85,29 @@ class AtomicFormula(StateFormula):
         @param ks: The Kripke structure to evaluate against.
         @param formulae_evaluations: A mapping of states to formula evaluations.
         """
-        domains = [list(range(max_value + 1)) for max_value in ks.stg.variables.values()]
-        dov = self.yield_dov(domains, ks.stg.variables)
+        dov = self.yield_dov(ks.stg.variables)
+        border = get_border_states(dov, list(ks.stg.variables.values()))
+        dov_complement = self.complement_dov(dov, ks.stg.variables)
+        max_depth = find_extreme_state(dov, border, list(ks.stg.variables.values()))
+        max_dist = find_extreme_state(dov_complement.union(border), border, list(ks.stg.variables.values()))
         for state in ks.stg.states:
-            if state == (1,1,1):
-                x = math.inf
-
-            wsd = weighted_signed_distance(dov, state, ks.stg.variables)
-            _, ext_wsd = find_extreme_state(dov, ks.stg.variables.values(), wsd >= 0)
-            formulae_evaluations[state][repr(self)] = wsd / ext_wsd if ext_wsd > 0 else 1
+            wd = weighted_distance(state, border, list(ks.stg.variables.values()))
+            if state in dov:
+                formulae_evaluations[state][repr(self)] = wd / max_depth if max_depth > 0 else 1
+            else:
+                formulae_evaluations[state][repr(self)] = -wd / max_dist if max_depth > 0 else 1
 
     @abstractmethod
     def negate(self):
         pass
+
+    @staticmethod
+    def complement_dov(dov, max_activities) -> DomainOfValidityType:
+        """Returns the complement of the given set of states within the valid space."""
+        variables = list(max_activities.keys())  # Ensure correct order
+        full_space = set(product(*(range(max_activities[var] + 1) for var in variables)))  # Generate all states
+
+        return full_space - dov
 
 
 class AtomicProposition(AtomicFormula):
@@ -110,20 +120,16 @@ class AtomicProposition(AtomicFormula):
     def __repr__(self) -> str:
         return f"({self.variable} {self.operator} {self.value})"
 
-    def yield_dov(self, dov: DomainOfValidityType, max_activities: MaxActivitiesType) -> DomainOfValidityType:
-        new_dov = deepcopy(dov)
-        idx = list(max_activities.keys()).index(self.variable)
+    def yield_dov(self, max_activities: MaxActivitiesType) -> DomainOfValidityType:
         max_val = max_activities[self.variable]
-
         if self.operator == ">=":
-            valid_values = list(range(max(self.value, 0), max_val + 1))
-        elif self.operator == "<=":
-            valid_values = list(range(0, min(self.value, max_val) + 1))
-        else:
-            raise ValueError(f"Unsupported operator: {self.operator}")
-
-        new_dov[idx] = sorted(set(new_dov[idx]).intersection(valid_values))
-        return new_dov
+            valid_values = range(self.value, max_val + 1)
+        else:  # self.operator == "<="
+            valid_values = range(0, self.value + 1)
+        domains = []
+        for var in max_activities.keys():
+            domains.append(valid_values if var == self.variable else range(0, max_activities[var] + 1))
+        return set(product(*domains))
 
     def eliminate_negation(self) -> 'AtomicFormula':
         return self
@@ -143,7 +149,7 @@ class Negation(AtomicFormula):
     def __repr__(self) -> str:
         return f"!{repr(self.operand)}"
 
-    def yield_dov(self, dov: DomainOfValidityType, max_activities: MaxActivitiesType) -> DomainOfValidityType:
+    def yield_dov(self, max_activities: MaxActivitiesType) -> DomainOfValidityType:
         raise NotImplementedError("Negation must be eliminated before calling yield_dov.")
 
     def eliminate_negation(self) -> AtomicFormula:
@@ -167,16 +173,10 @@ class Union(AtomicFormula):
     def __repr__(self) -> str:
         return f"({repr(self.left)} | {repr(self.right)})"
 
-    def yield_dov(self, dov: DomainOfValidityType, max_activities: MaxActivitiesType) -> DomainOfValidityType:
-        left_dov = self.left.yield_dov(dov, max_activities)
-        right_dov = self.right.yield_dov(dov, max_activities)
-
-        combined_dov = [
-            sorted(set(left_dov[idx]).union(right_dov[idx]))
-            for idx in range(len(dov))
-        ]
-
-        return combined_dov
+    def yield_dov(self, max_activities: MaxActivitiesType) -> DomainOfValidityType:
+        left_dov = self.left.yield_dov(max_activities)
+        right_dov = self.right.yield_dov(max_activities)
+        return left_dov.union(right_dov)
 
     def eliminate_negation(self) -> AtomicFormula:
         if isinstance(self.left, Negation):
@@ -200,13 +200,10 @@ class Intersection(AtomicFormula):
     def __repr__(self) -> str:
         return f"({repr(self.left)} & {repr(self.right)})"
 
-    def yield_dov(self, dov: DomainOfValidityType, max_activities: MaxActivitiesType) -> DomainOfValidityType:
-        left_dov = self.left.yield_dov(dov, max_activities)
-        right_dov = self.right.yield_dov(dov, max_activities)
-        combined_dov = [
-            sorted(set(left_dov[idx]).intersection(right_dov[idx]))
-            for idx in range(len(dov))]
-        return combined_dov
+    def yield_dov(self, max_activities: MaxActivitiesType) -> DomainOfValidityType:
+        left_dov = self.left.yield_dov(max_activities)
+        right_dov = self.right.yield_dov(max_activities)
+        return left_dov.intersection(right_dov)
 
     def eliminate_negation(self) -> AtomicFormula:
         if isinstance(self.left, Negation):
