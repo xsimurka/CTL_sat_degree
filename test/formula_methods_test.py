@@ -104,7 +104,7 @@ class TestYieldDov(unittest.TestCase):
         formula2 = AtomicProposition("y", "<=", 0)
         union_formula = Union(formula1, formula2)
         expected_dov = [[0], [0], [0, 1, 2]]
-        x = union_formula.yield_dov(deepcopy(self.dov), self.max_activities)
+        x = union_formula.compute_dov(deepcopy(self.dov), self.max_activities)
         self.assertEqual(x, expected_dov)
 
     # def test_intersection(self):

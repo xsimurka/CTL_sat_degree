@@ -58,7 +58,7 @@ class AtomicFormula(StateFormula):
     """
 
     @abstractmethod
-    def yield_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
+    def compute_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
         """
         Computes the domain of validity for the atomic formula.
 
@@ -84,8 +84,8 @@ class AtomicFormula(StateFormula):
         @param ks: The Kripke structure to evaluate against.
         @param formulae_evaluations: A mapping of states to formula evaluations.
         """
-        dov = self.yield_dov(ks.stg.variables)
-        dov_complement = self.complement_dov(dov, ks.stg.variables)
+        dov = self.compute_dov(ks.stg.variables)
+        dov_complement = self.compute_dov_complement(dov, ks.stg.variables)
         border = get_border_states(dov, list(ks.stg.variables.values()))
         max_depth = find_extreme_state(dov, border, list(ks.stg.variables.values()))
         max_dist = find_extreme_state(dov_complement.union(border), border, list(ks.stg.variables.values()))
@@ -97,7 +97,7 @@ class AtomicFormula(StateFormula):
                 formulae_evaluations[state][repr(self)] = -wd / max_dist if max_depth > 0 else 0
 
     @staticmethod
-    def complement_dov(dov, max_activities) -> SubspaceType:
+    def compute_dov_complement(dov, max_activities) -> SubspaceType:
         """Returns the complement of the given set of states within the valid space."""
         variables = list(max_activities.keys())  # Ensure correct order
         full_space = set(product(*(range(max_activities[var] + 1) for var in variables)))
@@ -117,7 +117,7 @@ class AtomicProposition(AtomicFormula):
     def __repr__(self) -> str:
         return f"({self.variable} {self.operator} {self.value})"
 
-    def yield_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
+    def compute_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
         max_val = max_activities[self.variable]
         if self.operator == ">=":
             valid_values = range(self.value, max_val + 1)
@@ -145,7 +145,7 @@ class Negation(AtomicFormula):
     def __repr__(self) -> str:
         return f"!{repr(self.operand)}"
 
-    def yield_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
+    def compute_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
         raise NotImplementedError("Negation must be eliminated before calling yield_dov.")
 
     def eliminate_negation(self) -> AtomicFormula:
@@ -168,9 +168,9 @@ class Union(AtomicFormula):
     def __repr__(self) -> str:
         return f"({repr(self.left)} | {repr(self.right)})"
 
-    def yield_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
-        left_dov = self.left.yield_dov(max_activities)
-        right_dov = self.right.yield_dov(max_activities)
+    def compute_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
+        left_dov = self.left.compute_dov(max_activities)
+        right_dov = self.right.compute_dov(max_activities)
         return left_dov.union(right_dov)
 
     def eliminate_negation(self) -> AtomicFormula:
@@ -194,9 +194,9 @@ class Intersection(AtomicFormula):
     def __repr__(self) -> str:
         return f"({repr(self.left)} & {repr(self.right)})"
 
-    def yield_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
-        left_dov = self.left.yield_dov(max_activities)
-        right_dov = self.right.yield_dov(max_activities)
+    def compute_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
+        left_dov = self.left.compute_dov(max_activities)
+        right_dov = self.right.compute_dov(max_activities)
         return left_dov.intersection(right_dov)
 
     def eliminate_negation(self) -> AtomicFormula:
@@ -303,6 +303,7 @@ class AG(StateFormula):
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         queue = MinPriorityQueue()
         for state in ks.stg.states:
+            formulae_evaluations[state][repr(self)] = formulae_evaluations[state][repr(self.operand)]
             predcs = ks.stg.graph.predecessors(state)
             for p in predcs:
                 queue.decrease_priority(p, formulae_evaluations[state][repr(self.operand)])
@@ -312,7 +313,7 @@ class AG(StateFormula):
             succs = ks.stg.graph.successors(state)
             min_value = min([formulae_evaluations[s][repr(self.operand)] for s in succs])  # all needs minimal value of operand
             # if state has no value yet or propagated minimal value is smaller than actual best, replace it and notify predecessors
-            if formulae_evaluations[state][repr(self)] is None or min_value < formulae_evaluations[state][repr(self)]:
+            if min_value < formulae_evaluations[state][repr(self)]:
                 formulae_evaluations[state][repr(self)] = min_value  # replace the original value
                 predcs = ks.stg.graph.predecessors(state)
                 for p in predcs:
@@ -338,6 +339,7 @@ class EG(StateFormula):
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         queue = MinPriorityQueue()
         for state in ks.stg.states:
+            formulae_evaluations[state][repr(self)] = formulae_evaluations[state][repr(self.operand)]
             predcs = ks.stg.graph.predecessors(state)
             for p in predcs:
                 queue.decrease_priority(p, formulae_evaluations[state][repr(self.operand)])
@@ -347,7 +349,7 @@ class EG(StateFormula):
             succs = ks.stg.graph.successors(state)
             max_value = max([formulae_evaluations[s][repr(self.operand)] for s in succs])  # exists needs maximal value of operand
             # if state has no value yet or propagated maximal value is smaller than actual best, replace it and notify predecessors
-            if formulae_evaluations[state][repr(self)] is None or max_value < formulae_evaluations[state][repr(self)]:
+            if max_value < formulae_evaluations[state][repr(self)]:
                 formulae_evaluations[state][repr(self)] = max_value  # replace the original value
                 predcs = ks.stg.graph.predecessors(state)
                 for p in predcs:
@@ -373,6 +375,7 @@ class AF(StateFormula):
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         queue = MaxPriorityQueue()
         for state in ks.stg.states:
+            formulae_evaluations[state][repr(self)] = formulae_evaluations[state][repr(self.operand)]
             predcs = ks.stg.graph.predecessors(state)
             for p in predcs:
                 queue.increase_priority(p, formulae_evaluations[state][repr(self.operand)])
@@ -382,7 +385,7 @@ class AF(StateFormula):
             succs = list(ks.stg.graph.successors(state))
             min_value = min([formulae_evaluations[s][repr(self.operand)] for s in succs])  # all needs minimal value of operand
             # if state has no value yet or propagated minimal value is greater than actual best, replace it and notify predecessors
-            if formulae_evaluations[state][repr(self)] is None or min_value > formulae_evaluations[state][repr(self)]:
+            if min_value > formulae_evaluations[state][repr(self)]:
                 formulae_evaluations[state][repr(self)] = min_value  # replace the original value
                 predcs = ks.stg.graph.predecessors(state)
                 for p in predcs:
@@ -408,6 +411,7 @@ class EF(StateFormula):
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         queue = MaxPriorityQueue()
         for state in ks.stg.states:
+            formulae_evaluations[state][repr(self)] = formulae_evaluations[state][repr(self.operand)]
             predcs = ks.stg.graph.predecessors(state)
             for p in predcs:
                 queue.increase_priority(p, formulae_evaluations[state][repr(self.operand)])
@@ -417,7 +421,7 @@ class EF(StateFormula):
             succs = ks.stg.graph.successors(state)
             max_value = max([formulae_evaluations[s][repr(self.operand)] for s in succs])  # exists needs maximal value of operand
             # if state has no value yet or propagated maximal value is greater than actual best, replace it and notify predecessors
-            if formulae_evaluations[state][repr(self)] is None or max_value > formulae_evaluations[state][repr(self)]:
+            if max_value > formulae_evaluations[state][repr(self)]:
                 formulae_evaluations[state][repr(self)] = max_value  # replace the original value
                 predcs = ks.stg.graph.predecessors(state)
                 for p in predcs:
@@ -584,9 +588,6 @@ class AW(StateFormula):
 
         ag = AG(self.left)
         au = AU(self.left, self.right)
-        for state in ks.stg.states:
-            formulae_evaluations[state][repr(ag)] = None
-
         ag.evaluate(ks, formulae_evaluations)
         au.evaluate(ks, formulae_evaluations)
         for state in ks.stg.states:
@@ -623,12 +624,8 @@ class EW(StateFormula):
 
         eg = EG(self.left)
         eu = EU(self.left, self.right)
-        for state in ks.stg.states:
-            formulae_evaluations[state][repr(eg)] = None
 
         eg.evaluate(ks, formulae_evaluations)
         eu.evaluate(ks, formulae_evaluations)
         for state in ks.stg.states:
             formulae_evaluations[state][repr(self)] = max(formulae_evaluations[state][repr(eg)], formulae_evaluations[state][repr(eu)])
-
-
