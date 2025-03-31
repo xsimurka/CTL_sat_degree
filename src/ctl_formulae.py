@@ -1,11 +1,10 @@
-import math
 from abc import ABC, abstractmethod
-from copy import deepcopy
 from typing import List
 from itertools import product
 from src.quantitative_ctl import KripkeStructure
 from src.satisfaction_degree import weighted_distance, find_extreme_state, get_border_states
-from src.custom_types import DomainOfValidityType, FormulaEvaluationType, MaxActivitiesType
+from src.custom_types import SubspaceType, QuantLabelingFnType, MaxActivitiesType
+from src.priority_queue import MinPriorityQueue, MaxPriorityQueue
 
 
 class StateFormula(ABC):
@@ -39,7 +38,7 @@ class StateFormula(ABC):
         pass
 
     @abstractmethod
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         """
         Evaluates the formula within the given Kripke structure.
 
@@ -59,7 +58,7 @@ class AtomicFormula(StateFormula):
     """
 
     @abstractmethod
-    def yield_dov(self, max_activities: MaxActivitiesType) -> DomainOfValidityType:
+    def yield_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
         """
         Computes the domain of validity for the atomic formula.
 
@@ -78,7 +77,7 @@ class AtomicFormula(StateFormula):
         """
         return [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         """
         Evaluates the atomic formula in a given Kripke structure.
 
@@ -86,32 +85,30 @@ class AtomicFormula(StateFormula):
         @param formulae_evaluations: A mapping of states to formula evaluations.
         """
         dov = self.yield_dov(ks.stg.variables)
-        border = get_border_states(dov, list(ks.stg.variables.values()))
         dov_complement = self.complement_dov(dov, ks.stg.variables)
+        border = get_border_states(dov, list(ks.stg.variables.values()))
         max_depth = find_extreme_state(dov, border, list(ks.stg.variables.values()))
         max_dist = find_extreme_state(dov_complement.union(border), border, list(ks.stg.variables.values()))
         for state in ks.stg.states:
             wd = weighted_distance(state, border, list(ks.stg.variables.values()))
             if state in dov:
-                formulae_evaluations[state][repr(self)] = wd / max_depth if max_depth > 0 else 1
+                formulae_evaluations[state][repr(self)] = wd / max_depth if max_depth > 0 else 0
             else:
-                formulae_evaluations[state][repr(self)] = -wd / max_dist if max_depth > 0 else 1
+                formulae_evaluations[state][repr(self)] = -wd / max_dist if max_depth > 0 else 0
+
+    @staticmethod
+    def complement_dov(dov, max_activities) -> SubspaceType:
+        """Returns the complement of the given set of states within the valid space."""
+        variables = list(max_activities.keys())  # Ensure correct order
+        full_space = set(product(*(range(max_activities[var] + 1) for var in variables)))
+        return full_space - dov
 
     @abstractmethod
     def negate(self):
         pass
 
-    @staticmethod
-    def complement_dov(dov, max_activities) -> DomainOfValidityType:
-        """Returns the complement of the given set of states within the valid space."""
-        variables = list(max_activities.keys())  # Ensure correct order
-        full_space = set(product(*(range(max_activities[var] + 1) for var in variables)))  # Generate all states
-
-        return full_space - dov
-
 
 class AtomicProposition(AtomicFormula):
-    """OK the dov should be dict"""
     def __init__(self, variable: str, operator: str, value: int) -> None:
         self.variable = variable
         self.operator = operator
@@ -120,7 +117,7 @@ class AtomicProposition(AtomicFormula):
     def __repr__(self) -> str:
         return f"({self.variable} {self.operator} {self.value})"
 
-    def yield_dov(self, max_activities: MaxActivitiesType) -> DomainOfValidityType:
+    def yield_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
         max_val = max_activities[self.variable]
         if self.operator == ">=":
             valid_values = range(self.value, max_val + 1)
@@ -142,14 +139,13 @@ class AtomicProposition(AtomicFormula):
 
 
 class Negation(AtomicFormula):
-    """OK"""
     def __init__(self, operand: AtomicFormula) -> None:
         self.operand = operand
 
     def __repr__(self) -> str:
         return f"!{repr(self.operand)}"
 
-    def yield_dov(self, max_activities: MaxActivitiesType) -> DomainOfValidityType:
+    def yield_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
         raise NotImplementedError("Negation must be eliminated before calling yield_dov.")
 
     def eliminate_negation(self) -> AtomicFormula:
@@ -165,7 +161,6 @@ class Negation(AtomicFormula):
 
 
 class Union(AtomicFormula):
-    """OK the dov should be dict"""
     def __init__(self, left: AtomicFormula, right: AtomicFormula) -> None:
         self.left = left
         self.right = right
@@ -173,7 +168,7 @@ class Union(AtomicFormula):
     def __repr__(self) -> str:
         return f"({repr(self.left)} | {repr(self.right)})"
 
-    def yield_dov(self, max_activities: MaxActivitiesType) -> DomainOfValidityType:
+    def yield_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
         left_dov = self.left.yield_dov(max_activities)
         right_dov = self.right.yield_dov(max_activities)
         return left_dov.union(right_dov)
@@ -192,7 +187,6 @@ class Union(AtomicFormula):
 
 
 class Intersection(AtomicFormula):
-    """OK the dov should be dict"""
     def __init__(self, left: AtomicFormula, right: AtomicFormula) -> None:
         self.left = left
         self.right = right
@@ -200,7 +194,7 @@ class Intersection(AtomicFormula):
     def __repr__(self) -> str:
         return f"({repr(self.left)} & {repr(self.right)})"
 
-    def yield_dov(self, max_activities: MaxActivitiesType) -> DomainOfValidityType:
+    def yield_dov(self, max_activities: MaxActivitiesType) -> SubspaceType:
         left_dov = self.left.yield_dov(max_activities)
         right_dov = self.right.yield_dov(max_activities)
         return left_dov.intersection(right_dov)
@@ -219,7 +213,6 @@ class Intersection(AtomicFormula):
 
 
 class Boolean(StateFormula):
-    """OK the valuation is questionable"""
     def __init__(self, value: bool):
         self.value = value
 
@@ -232,13 +225,12 @@ class Boolean(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         for state in ks.stg.states:
             formulae_evaluations[state][repr(self)] = 1 if self.value else -1
 
 
 class Conjunction(StateFormula):
-    """OK"""
     def __init__(self, left: StateFormula, right: StateFormula):
         self.left = left
         self.right = right
@@ -260,13 +252,12 @@ class Conjunction(StateFormula):
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         for state in ks.stg.states:
             formulae_evaluations[state][repr(self)] = min(formulae_evaluations[state][repr(self.left)], formulae_evaluations[state][repr(self.right)])
 
 
 class Disjunction(StateFormula):
-    """OK"""
     def __init__(self, left: StateFormula, right: StateFormula):
         self.left = left
         self.right = right
@@ -288,7 +279,7 @@ class Disjunction(StateFormula):
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         for state in ks.stg.states:
             formulae_evaluations[state][repr(self)] = max(formulae_evaluations[state][repr(self.left)], formulae_evaluations[state][repr(self.right)])
 
@@ -309,16 +300,23 @@ class AG(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
-        queue = set(ks.stg.states)
-        while queue:
-            state = queue.pop()
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
+        queue = MinPriorityQueue()
+        for state in ks.stg.states:
+            predcs = ks.stg.graph.predecessors(state)
+            for p in predcs:
+                queue.decrease_priority(p, formulae_evaluations[state][repr(self.operand)])
+
+        while queue.heap:
+            state, _ = queue.extract_min()
             succs = ks.stg.graph.successors(state)
             min_value = min([formulae_evaluations[s][repr(self.operand)] for s in succs])  # all needs minimal value of operand
             # if state has no value yet or propagated minimal value is smaller than actual best, replace it and notify predecessors
             if formulae_evaluations[state][repr(self)] is None or min_value < formulae_evaluations[state][repr(self)]:
                 formulae_evaluations[state][repr(self)] = min_value  # replace the original value
-                queue.update(ks.stg.graph.predecessors(state))  # put all states that could be updated back to the queue
+                predcs = ks.stg.graph.predecessors(state)
+                for p in predcs:
+                    queue.decrease_priority(p, formulae_evaluations[state][repr(self.operand)])
 
 
 class EG(StateFormula):
@@ -337,16 +335,23 @@ class EG(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
-        queue = set(ks.stg.states)
-        while queue:
-            state = queue.pop()
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
+        queue = MinPriorityQueue()
+        for state in ks.stg.states:
+            predcs = ks.stg.graph.predecessors(state)
+            for p in predcs:
+                queue.decrease_priority(p, formulae_evaluations[state][repr(self.operand)])
+
+        while queue.heap:
+            state, _ = queue.extract_min()
             succs = ks.stg.graph.successors(state)
             max_value = max([formulae_evaluations[s][repr(self.operand)] for s in succs])  # exists needs maximal value of operand
             # if state has no value yet or propagated maximal value is smaller than actual best, replace it and notify predecessors
             if formulae_evaluations[state][repr(self)] is None or max_value < formulae_evaluations[state][repr(self)]:
                 formulae_evaluations[state][repr(self)] = max_value  # replace the original value
-                queue.update(ks.stg.graph.predecessors(state))  # put all states that could be updated back to the queue
+                predcs = ks.stg.graph.predecessors(state)
+                for p in predcs:
+                    queue.decrease_priority(p, formulae_evaluations[state][repr(self.operand)])
 
 
 class AF(StateFormula):
@@ -365,16 +370,23 @@ class AF(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
-        queue = set(ks.stg.states)
-        while queue:
-            state = queue.pop()
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
+        queue = MaxPriorityQueue()
+        for state in ks.stg.states:
+            predcs = ks.stg.graph.predecessors(state)
+            for p in predcs:
+                queue.increase_priority(p, formulae_evaluations[state][repr(self.operand)])
+
+        while queue.heap:
+            state, _ = queue.extract_max()
             succs = list(ks.stg.graph.successors(state))
             min_value = min([formulae_evaluations[s][repr(self.operand)] for s in succs])  # all needs minimal value of operand
             # if state has no value yet or propagated minimal value is greater than actual best, replace it and notify predecessors
             if formulae_evaluations[state][repr(self)] is None or min_value > formulae_evaluations[state][repr(self)]:
                 formulae_evaluations[state][repr(self)] = min_value  # replace the original value
-                queue.update(ks.stg.graph.predecessors(state))  # put all states that could be updated back to the queue
+                predcs = ks.stg.graph.predecessors(state)
+                for p in predcs:
+                    queue.increase_priority(p, formulae_evaluations[state][repr(self.operand)])
 
 
 class EF(StateFormula):
@@ -393,16 +405,23 @@ class EF(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
-        queue = set(ks.stg.states)
-        while queue:
-            state = queue.pop()
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
+        queue = MaxPriorityQueue()
+        for state in ks.stg.states:
+            predcs = ks.stg.graph.predecessors(state)
+            for p in predcs:
+                queue.increase_priority(p, formulae_evaluations[state][repr(self.operand)])
+
+        while queue.heap:
+            state, _ = queue.extract_max()
             succs = ks.stg.graph.successors(state)
             max_value = max([formulae_evaluations[s][repr(self.operand)] for s in succs])  # exists needs maximal value of operand
             # if state has no value yet or propagated maximal value is greater than actual best, replace it and notify predecessors
             if formulae_evaluations[state][repr(self)] is None or max_value > formulae_evaluations[state][repr(self)]:
                 formulae_evaluations[state][repr(self)] = max_value  # replace the original value
-                queue.update(ks.stg.graph.predecessors(state))  # put all states that could be updated back to the queue
+                predcs = ks.stg.graph.predecessors(state)
+                for p in predcs:
+                    queue.increase_priority(p, formulae_evaluations[state][repr(self.operand)])
 
 
 class AX(StateFormula):
@@ -421,7 +440,7 @@ class AX(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         for state in ks.stg.states:
             succs = ks.stg.graph.successors(state)
             formulae_evaluations[state][repr(self)] = min([formulae_evaluations[s][repr(self.operand)] for s in succs])
@@ -443,7 +462,7 @@ class EX(StateFormula):
     def get_subformulae(self) -> List['StateFormula']:
         return self.operand.get_subformulae() + [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         for state in ks.stg.states:
             succs = ks.stg.graph.successors(state)
             formulae_evaluations[state][repr(self)] = max([formulae_evaluations[s][repr(self.operand)] for s in succs])
@@ -471,20 +490,25 @@ class AU(StateFormula):
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
+        queue = MaxPriorityQueue()
         for state in ks.stg.states:  # initialize the computation with the right operand value in each state
             formulae_evaluations[state][repr(self)] = formulae_evaluations[state][repr(self.right)]
+            predcs = ks.stg.graph.predecessors(state)
+            for p in predcs:
+                queue.increase_priority(p, formulae_evaluations[state][repr(self.left)])
 
-        queue = set(ks.stg.states)
-        while queue:
-            state = queue.pop()
+        while queue.heap:
+            state, _ = queue.extract_max()
             succs = ks.stg.graph.successors(state)
             min_until_nexts = min([formulae_evaluations[s][repr(self)] for s in succs])  # all takes minimal value of the whole Until from successors
             left_self, until_self = formulae_evaluations[state][repr(self.left)], formulae_evaluations[state][repr(self)]
             extend = min(left_self, min_until_nexts)   # tries to extend the prefix with the current left
             if extend > until_self:  # compare the extended prefix with actual value of until, if extension is better, then update
                 formulae_evaluations[state][repr(self)] = extend
-                queue.update(ks.stg.graph.predecessors(state))  # put all states that could be updated back to the queue
+                predcs = ks.stg.graph.predecessors(state)
+                for p in predcs:
+                    queue.increase_priority(p, formulae_evaluations[state][repr(self.left)])
 
 
 class EU(StateFormula):
@@ -509,20 +533,25 @@ class EU(StateFormula):
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
-        for state in ks.stg.states:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
+        queue = MaxPriorityQueue()
+        for state in ks.stg.states:  # initialize the computation with the right operand value in each state
             formulae_evaluations[state][repr(self)] = formulae_evaluations[state][repr(self.right)]
+            predcs = ks.stg.graph.predecessors(state)
+            for p in predcs:
+                queue.increase_priority(p, formulae_evaluations[state][repr(self.left)])
 
-        queue = set(ks.stg.states)
-        while queue:
-            state = queue.pop()
+        while queue.heap:
+            state, _ = queue.extract_max()
             succs = ks.stg.graph.successors(state)
             max_until_nexts = max([formulae_evaluations[s][repr(self)] for s in succs])  # exists takes minimal value of the whole Until from successors
             left_self, until_self = formulae_evaluations[state][repr(self.left)], formulae_evaluations[state][repr(self)]
             extend = min(left_self, max_until_nexts)  # tries to extend the prefix with the current left
             if extend > until_self:  # compare the extended prefix with actual value of until, if extension is better, then update
                 formulae_evaluations[state][repr(self)] = extend
-                queue.update(ks.stg.graph.predecessors(state))  # put all states that could be updated back to the queue
+                predcs = ks.stg.graph.predecessors(state)
+                for p in predcs:
+                    queue.increase_priority(p, formulae_evaluations[state][repr(self.left)])
 
 
 class AW(StateFormula):
@@ -547,7 +576,7 @@ class AW(StateFormula):
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         """The problem here is that you cannot optimize between AG and AU online because you have no guarantee on AG
         until it finally converges. It can happen that you overwrite the best AU by best AG at some point, but later
         you find out that the AG is actually very poor. But the information about best AU is already lost.
@@ -586,7 +615,7 @@ class EW(StateFormula):
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
 
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: FormulaEvaluationType) -> None:
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         """The problem here is that you cannot optimize between EG and EU online because you have no guarantee on EG
         until it finally converges. It can happen that you overwrite the best EU by best EG at some point, but later
         you find out that the EG is actually very poor. But the information about best EU is already lost.

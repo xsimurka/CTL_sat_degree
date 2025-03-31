@@ -1,8 +1,7 @@
-from typing import List, Dict, Tuple, Optional, Set
+from typing import Dict, Tuple, Optional, Set
 
 
-DomainType = List[int]
 StateType = Tuple[int, ...]
-DomainOfValidityType = Set[StateType]
+SubspaceType = Set[StateType]
 MaxActivitiesType = Dict[str, int]
-FormulaEvaluationType = Dict[Tuple[int], Dict[str, Optional[float]]]
+QuantLabelingFnType = Dict[Tuple[int], Dict[str, Optional[float]]]

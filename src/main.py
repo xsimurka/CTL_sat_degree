@@ -225,7 +225,9 @@ def main2(json_file):
     stg.variables = variables
     stg.states = all_states
     stg.graph = G
-    parsed_formula = parse_formula("((x >= 5) & (x <= 12) & (y >= 4) & (y <= 10)) | (x >= 9) & (x <= 15) & (y >= 7) & (y <= 13)")
+    #parsed_formula = parse_formula("((x >= 5) & (x <= 12) & (y >= 4) & (y <= 10)) | (x >= 9) & (x <= 15) & (y >= 7) & (y <= 13)")
+    parsed_formula = parse_formula(
+        "EG (((x >= 5) & (x <= 12) & (y >= 4) & (y <= 10)) | ((x >= 9) & (x <= 15) & (y >= 7) & (y <= 13)))")
     positive_formula = parsed_formula.eliminate_negation()
     #initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
     ks = KripkeStructure(stg, None)
