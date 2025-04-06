@@ -91,6 +91,7 @@ class AtomicFormula(StateFormula):
         max_dist = find_extreme_state(dov_complement.union(border), border, list(ks.stg.variables.values()))
         for state in ks.stg.states:
             wd = weighted_distance(state, border, list(ks.stg.variables.values()))
+            print(state, wd)
             if state in dov:
                 formulae_evaluations[state][repr(self)] = wd / max_depth if max_depth > 0 else 0
             else:
@@ -500,7 +501,7 @@ class AU(StateFormula):
             formulae_evaluations[state][repr(self)] = formulae_evaluations[state][repr(self.right)]
             predcs = ks.stg.graph.predecessors(state)
             for p in predcs:
-                queue.increase_priority(p, formulae_evaluations[state][repr(self.left)])
+                queue.increase_priority(p, formulae_evaluations[state][repr(self.right)])
 
         while queue.heap:
             state, _ = queue.extract_max()
@@ -512,7 +513,7 @@ class AU(StateFormula):
                 formulae_evaluations[state][repr(self)] = extend
                 predcs = ks.stg.graph.predecessors(state)
                 for p in predcs:
-                    queue.increase_priority(p, formulae_evaluations[state][repr(self.left)])
+                    queue.increase_priority(p, extend)
 
 
 class EU(StateFormula):
@@ -543,7 +544,7 @@ class EU(StateFormula):
             formulae_evaluations[state][repr(self)] = formulae_evaluations[state][repr(self.right)]
             predcs = ks.stg.graph.predecessors(state)
             for p in predcs:
-                queue.increase_priority(p, formulae_evaluations[state][repr(self.left)])
+                queue.increase_priority(p, formulae_evaluations[state][repr(self.right)])  # not sure
 
         while queue.heap:
             state, _ = queue.extract_max()
@@ -555,7 +556,7 @@ class EU(StateFormula):
                 formulae_evaluations[state][repr(self)] = extend
                 predcs = ks.stg.graph.predecessors(state)
                 for p in predcs:
-                    queue.increase_priority(p, formulae_evaluations[state][repr(self.left)])
+                    queue.increase_priority(p, extend)
 
 
 class AW(StateFormula):

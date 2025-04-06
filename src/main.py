@@ -169,8 +169,8 @@ def main2(json_file):
     # validate_initial_states(initial_states, mvgrn)
     # stg = StateTransitionGraph(mvgrn)
     variables = {
-        "x": 16,  # Activity levels: 0, 1, 2
-        "y": 18,  # Activity levels: 0, 1, 2, 3
+        "x": 5,  # Activity levels: 0, 1, 2
+        "y": 4,  # Activity levels: 0, 1, 2, 3
     }
 
     # Define regulations (simplified for generating transitions)
@@ -227,7 +227,8 @@ def main2(json_file):
     stg.graph = G
     #parsed_formula = parse_formula("((x >= 5) & (x <= 12) & (y >= 4) & (y <= 10)) | (x >= 9) & (x <= 15) & (y >= 7) & (y <= 13)")
     parsed_formula = parse_formula(
-        "EG (((x >= 5) & (x <= 12) & (y >= 4) & (y <= 10)) | ((x >= 9) & (x <= 15) & (y >= 7) & (y <= 13)))")
+       # "EG (((x >= 5) & (x <= 12) & (y >= 4) & (y <= 10)) | ((x >= 9) & (x <= 15) & (y >= 7) & (y <= 13)))")
+        "AG !(x >= 2)")
     positive_formula = parsed_formula.eliminate_negation()
     #initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
     ks = KripkeStructure(stg, None)
