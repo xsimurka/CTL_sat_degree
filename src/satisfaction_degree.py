@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 from math import inf
 from src.custom_types import SubspaceType, StateType
 from src.priority_queue import MinPriorityQueue
@@ -36,25 +36,27 @@ def get_hamming_neighbors(state: StateType, max_activities: List[int], weights=N
                 yield weights[i], neighbor
 
 
-def get_border_states(dov: SubspaceType, max_activities: List[int]) -> SubspaceType:
+def get_border_states(dov: SubspaceType, max_activities: List[int]) -> Tuple[SubspaceType, SubspaceType]:
     """
-    Identify border states that have at least one missing Hamming neighbor.
+    Identify border states for both DoV and its complement.
 
-    The algorithm checks for each state in the domain of validity (`dov`) if it has any missing neighbor.
-    If a state is missing a neighbor (i.e., the neighbor does not belong to `dov`), it is considered a border state.
+    A state in DoV is a border state if it has at least one Hamming neighbor outside DoV (i.e., in co-DoV).
+    Conversely, a neighbor in co-DoV is also a border state for co-DoV.
 
     @param dov: The domain of validity.
     @param max_activities: A list of maximum allowed values for each activity dimension.
-    @return: A set of border states.
+    @return: A tuple (dov_border, co_dov_border) where each is a set of border states.
     """
-    border_states = set()
+    dov_border = set()
+    co_dov_border = set()
+
     for state in dov:
-        # Check for any missing neighbors for each state
         for _, neighbor in get_hamming_neighbors(state, max_activities):
             if neighbor not in dov:
-                border_states.add(state)
-                break
-    return border_states
+                dov_border.add(state)
+                co_dov_border.add(neighbor)
+
+    return dov_border, co_dov_border
 
 
 def weighted_distance(state: StateType, border: SubspaceType, max_activities: List[int]) -> float:
@@ -89,7 +91,7 @@ def weighted_distance(state: StateType, border: SubspaceType, max_activities: Li
     return float('inf')  # If no border state is found, return infinity
 
 
-def find_extreme_state(dov: SubspaceType, border: SubspaceType, max_act_values: List[int]) -> float:
+def find_extreme_state(dov: SubspaceType, co_border: SubspaceType, max_act_values: List[int]) -> float:
     """
     Find the state with the maximum minimal weighted distance to the border of the state set.
 
@@ -98,15 +100,15 @@ def find_extreme_state(dov: SubspaceType, border: SubspaceType, max_act_values: 
     distances is returned.
 
     @param dov: The domain of validity.
-    @param border: The set of border states.
+    @param co_border: The set of border states.
     @param max_act_values: A list of maximum allowed values for each activity dimension.
     @return: The maximal minimal weighted distance to the border among states.
     """
     weights = [1 / max_activity for max_activity in max_act_values]
-    dp = {state: inf for state in dov}
+    dp = {state: inf for state in dov.union(co_border)}
     queue = MinPriorityQueue()
 
-    for state in border:
+    for state in co_border:
         dp[state] = 0  # Distance of border states is 0
         queue.decrease_priority(state, 0)
 

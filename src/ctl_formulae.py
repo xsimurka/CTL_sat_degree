@@ -85,17 +85,18 @@ class AtomicFormula(StateFormula):
         @param formulae_evaluations: A mapping of states to formula evaluations.
         """
         dov = self.compute_dov(ks.stg.variables)
-        dov_complement = self.compute_dov_complement(dov, ks.stg.variables)
-        border = get_border_states(dov, list(ks.stg.variables.values()))
-        max_depth = find_extreme_state(dov, border, list(ks.stg.variables.values()))
-        max_dist = find_extreme_state(dov_complement.union(border), border, list(ks.stg.variables.values()))
+        co_dov = self.compute_dov_complement(dov, ks.stg.variables)
+        dov_b, co_dov_b = get_border_states(dov, list(ks.stg.variables.values()))
+        max_depth = find_extreme_state(dov, co_dov_b, list(ks.stg.variables.values()))
+        max_dist = find_extreme_state(co_dov, dov_b, list(ks.stg.variables.values()))
         for state in ks.stg.states:
-            wd = weighted_distance(state, border, list(ks.stg.variables.values()))
-            print(state, wd)
             if state in dov:
+                wd = weighted_distance(state, co_dov_b, list(ks.stg.variables.values()))
                 formulae_evaluations[state][repr(self)] = wd / max_depth if max_depth > 0 else 0
             else:
+                wd = weighted_distance(state, dov_b, list(ks.stg.variables.values()))
                 formulae_evaluations[state][repr(self)] = -wd / max_dist if max_depth > 0 else 0
+
 
     @staticmethod
     def compute_dov_complement(dov, max_activities) -> SubspaceType:
