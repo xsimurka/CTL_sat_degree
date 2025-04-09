@@ -119,7 +119,7 @@ class MvGRNParser:
         if not (0 <= target_value <= target_max):
             raise ValueError(f"Target value '{target_value}' must be in range [0, {target_max}].")
 
-        if not (isinstance(intervals, list) and all(isinstance(x, int) or x == "*" for x in intervals)):
+        if not (isinstance(intervals, list) for x in intervals):  # and all(isinstance(x, int) or x == "*" for x in intervals)):
             raise ValueError(f"Intervals {intervals} must be a list of integers or '*'.")
 
         if len(intervals) != len(regulators):
@@ -128,7 +128,7 @@ class MvGRNParser:
         for idx, val in enumerate(intervals):
             if val == "*":
                 continue
-
+            val = int(val)
             thresholds_count = len(regulators[idx]["thresholds"])
             if val < 1 or val > thresholds_count + 1:
                 raise ValueError(
@@ -189,7 +189,7 @@ class StateTransitionGraph:
             regulation = self.regulations.get(gene)
 
             if not regulation:
-                continue  # No regulation → no transitions for this gene
+                continue  # No regulation → static input
 
             regulators_names = [r["variable"] for r in regulation["regulators"]]
             regulators_indices = [variable_names.index(rn) for rn in regulators_names]

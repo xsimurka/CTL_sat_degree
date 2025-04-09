@@ -1,10 +1,11 @@
 import json
 from math import inf
 from src.multivalued_network import StateTransitionGraph, MvGRNParser
-from src.lark_ctl_parser import parse_formula
-from src.quantitative_ctl import model_check, KripkeStructure
+#from src.lark_ctl_parser import parse_formula
+#from src.quantitative_ctl import model_check, KripkeStructure
 import itertools
-import networkx as nx
+#import networkx as nx
+from visualization import visualize_stg_pyvis
 
 json_string = '''
 {
@@ -150,92 +151,6 @@ def format_result(formulae_evaluations, initial_states, formula) -> None:
     print("Average value among initial states:", cumulative / len(initial_states))
 
 
-def main2(json_file):
-    """
-    Main function to load data, parse formulas, validate states, generate states, build Kripke structure,
-    perform model checking, and print results.
-
-    @param json_file: Path to the JSON file containing input data
-    """
-    # with open(json_file, 'r') as file:
-    #     json_data = json.load(file)
-
-    # formula = json_data.get("formula")
-    # parsed_formula: StateFormula = parse_formula(formula)
-    # positive_formula: StateFormula = parsed_formula.eliminate_negation()
-    # initial_states = json_data.get("initial_states")
-    # network_data = json_data.get("network")
-    # mvgrn = MvGRNParser(network_data).parse()
-    # validate_initial_states(initial_states, mvgrn)
-    # stg = StateTransitionGraph(mvgrn)
-    variables = {
-        "x": 5,  # Activity levels: 0, 1, 2
-        "y": 4,  # Activity levels: 0, 1, 2, 3
-    }
-
-    # Define regulations (simplified for generating transitions)
-    regulations = {
-        "x": {"y": [1, 3]},  # A is regulated by B's levels
-        "y": {"x": [1]},  # B is regulated by A and C
-    }
-
-    # Generate all possible states
-    all_states = list(itertools.product(*[range(v + 1) for v in variables.values()]))
-
-    # Create a directed graph
-    G = nx.DiGraph()
-    G.add_nodes_from(all_states)
-
-    # Function to generate transitions based on regulations
-    def generate_successors(state):
-        successors = []
-        state_dict = {gene: state[i] for i, gene in enumerate(variables)}
-
-        for gene, regs in regulations.items():
-            idx = list(variables.keys()).index(gene)
-            current_value = state[idx]
-
-            for regulator, thresholds in regs.items():
-                reg_idx = list(variables.keys()).index(regulator)
-                reg_value = state[reg_idx]
-
-                for threshold in thresholds:
-                    if reg_value >= threshold:  # Example condition for increasing activity
-                        if current_value < variables[gene]:  # Ensure we stay within bounds
-                            new_state = list(state)
-                            new_state[idx] += 1
-                            successors.append(tuple(new_state))
-                    if reg_value <= threshold:  # Example condition for decreasing activity
-                        if current_value > 0:
-                            new_state = list(state)
-                            new_state[idx] -= 1
-                            successors.append(tuple(new_state))
-
-        if not successors:
-            successors.append(state)
-        return list(set(successors))  # Remove duplicate transitions
-
-    # Add transitions to the graph
-    for state in all_states:
-        successors = generate_successors(state)
-        for succ in successors:
-            G.add_edge(state, succ)
-
-    stg = StateTransitionGraph(None)
-    stg.variables = variables
-    stg.states = all_states
-    stg.graph = G
-    #parsed_formula = parse_formula("((x >= 5) & (x <= 12) & (y >= 4) & (y <= 10)) | (x >= 9) & (x <= 15) & (y >= 7) & (y <= 13)")
-    parsed_formula = parse_formula(
-       # "EG (((x >= 5) & (x <= 12) & (y >= 4) & (y <= 10)) | ((x >= 9) & (x <= 15) & (y >= 7) & (y <= 13)))")
-        "AG !(x >= 2)")
-    positive_formula = parsed_formula.eliminate_negation()
-    #initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
-    ks = KripkeStructure(stg, None)
-    formulae_evaluations = model_check(ks, positive_formula)
-    format_result(formulae_evaluations, ks.init_states, positive_formula)
-
-
 def main(json_file):
     """
     Main function to load data, parse formulas, validate states, generate states, build Kripke structure,
@@ -246,19 +161,19 @@ def main(json_file):
     with open(json_file, 'r') as file:
         json_data = json.load(file)
 
-    formula = json_data.get("formula")
-    parsed_formula = parse_formula(formula)
-    positive_formula = parsed_formula.eliminate_negation()
+    #formula = json_data.get("formula")
+    #parsed_formula = parse_formula(formula)
+    #positive_formula = parsed_formula.eliminate_negation()
     network_data = json_data.get("network")
     mvgrn = MvGRNParser(network_data).parse()
-    validate_initial_states(json_data.get("initial_states"), mvgrn)
+    #validate_initial_states(json_data.get("initial_states"), mvgrn)
     stg = StateTransitionGraph(mvgrn)
-    initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
-    ks = KripkeStructure(stg, initial_states)
-    formulae_evaluations = model_check(ks, positive_formula)
-    format_result(formulae_evaluations, ks.init_states, positive_formula)
-
+    #initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
+    #ks = KripkeStructure(stg, initial_states)
+    #formulae_evaluations = model_check(ks, positive_formula)
+    #format_result(formulae_evaluations, ks.init_states, positive_formula)
+    visualize_stg_pyvis(stg.graph)
 
 if __name__ == "__main__":
-    json_file = "path_to_your_json_file.json"  # Update this path to your JSON file
-    main2(json_file)
+    json_file = "../data/dense_overlapping_regions.json"
+    main(json_file)

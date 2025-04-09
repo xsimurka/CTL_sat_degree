@@ -3,12 +3,31 @@
     "variables": {
       "TF1": 3,
       "TF2": 3,
-      "GeneX": 4,
-      "GeneY": 2
+      "X": 4,
+      "Y": 2,
+      "Z": 3
     },
     "regulations": [
       {
-        "target": "GeneX",
+        "target": "TF1",
+        "regulators": [
+          { "variable": "Z", "thresholds": [1, 3] }
+        ],
+        "contexts": [
+          { "intervals": ["1"], "target_value": 3 },
+          { "intervals": ["2"], "target_value": 2 },
+          { "intervals": ["3"], "target_value": 1 }
+        ]
+      },
+      {
+        "target": "TF2",
+        "regulators": [],
+        "contexts": [
+          { "intervals": [], "target_value": 3 }
+        ]
+      },
+      {
+        "target": "X",
         "regulators": [
           { "variable": "TF1", "thresholds": [1, 3] },
           { "variable": "TF2", "thresholds": [1, 2] }
@@ -22,16 +41,29 @@
         ]
       },
       {
-        "target": "GeneY",
+        "target": "Y",
         "regulators": [
           { "variable": "TF1", "thresholds": [1, 2] },
           { "variable": "TF2", "thresholds": [1, 3] }
         ],
         "contexts": [
-          { "intervals": ["1", "1"], "target_value": 0 },
-          { "intervals": ["3", "3"], "target_value": 2 },
+          { "intervals": ["1", "1"], "target_value": 2 },
+          { "intervals": ["3", "3"], "target_value": 0 },
           { "intervals": ["*", "*"], "target_value": 1 }
         ]
+      },
+      {
+        "target": "Z",
+        "regulators": [
+          { "variable": "X", "thresholds": [2, 3] },
+          { "variable": "Y", "thresholds": [1] }
+        ],
+        "contexts": [
+          { "intervals": ["3", "2"], "target_value": 3 },
+          { "intervals": ["2", "*"], "target_value": 1 },
+          { "intervals": ["*", "*"], "target_value": 0 }
+        ],
+        "basal": 0
       }
     ]
   },
