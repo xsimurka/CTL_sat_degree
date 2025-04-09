@@ -1,5 +1,7 @@
 import itertools
+import math
 import networkx as nx
+from bisect import bisect_right
 
 
 class MultivaluedGRN:
@@ -34,7 +36,8 @@ class MvGRNParser:
 
         return MultivaluedGRN(self.variables, self.regulations)
 
-    def _validate_variables(self, variables):
+    @staticmethod
+    def _validate_variables(variables):
         """Validate variables are a dict and each has a positive integer max value."""
         if not isinstance(variables, dict):
             raise ValueError("'variables' must be a dictionary.")
@@ -103,7 +106,8 @@ class MvGRNParser:
         for context in contexts:
             self._validate_context(context, target_max, regulators)
 
-    def _validate_context(self, context, target_max, regulators):
+    @staticmethod
+    def _validate_context(context, target_max, regulators):
         """Validate an individual context."""
         required_fields = {"intervals", "target_value"}
         if not required_fields.issubset(context):
@@ -137,10 +141,10 @@ class StateTransitionGraph:
         """
         Initialize the state transition graph from a MultivaluedGRN object.
         """
-        self.variables = None #grn.variables
-        self.regulations = None #{reg["target"]: reg for reg in grn.regulations}
-        self.states = None #list(self._generate_all_states())
-        self.graph = None #self._construct_graph()
+        self.variables = grn.variables
+        self.regulations = {reg["target"]: reg for reg in grn.regulations}
+        self.states = list(self._generate_all_states())
+        self.graph = self._construct_graph()
 
     def _generate_all_states(self):
         """
@@ -163,7 +167,7 @@ class StateTransitionGraph:
         for state in self.states:
             successors = self._compute_state_successors(state)
             if not successors:
-                successors = [state]  # Self-loop for stable states
+                successors = [state]  # Should never happen now
 
             for succ in successors:
                 G.add_edge(state, succ)
@@ -187,35 +191,44 @@ class StateTransitionGraph:
             if not regulation:
                 continue  # No regulation → no transitions for this gene
 
-            regulator_names = [r["variable"] for r in regulation["regulators"]]
-            regulator_indices = [variable_names.index(rn) for rn in regulator_names]
-            regulator_state = [state[i] for i in regulator_indices]
+            regulators_names = [r["variable"] for r in regulation["regulators"]]
+            regulators_indices = [variable_names.index(rn) for rn in regulators_names]
+            regulators_values = {regulators_names[i]: state[i] for i in regulators_indices}
 
+            next_state = list(state)
             for context in regulation["contexts"]:
-                if is_context_satisfied(context["intervals"], regulator_state):
+                if is_context_satisfied(context["intervals"], regulation["regulators"], regulators_values):
                     target_val = context["target_value"]
                     delta = target_val - current_val
-
-                    if delta == 0:
-                        break
-
-                    next_state = list(state)
-                    next_state[idx] = current_val + (1 if delta > 0 else -1)
+                    next_state[idx] = current_val + int(math.copysign(1, delta)) if delta != 0 else 0
                     successors.append(tuple(next_state))
                     break  # First matching context determines transition
+            else:  # no context matched
+                delta = regulation.get("basal", 0) - current_val
+                next_state[idx] = current_val + int(math.copysign(1, delta)) if delta != 0 else 0
+                successors.append(tuple(next_state))
 
         return successors
 
 
-def is_context_satisfied(context_intervals, regulator_state):
+def is_context_satisfied(context_intervals, regulators, regulator_values):
     """
     Check whether a context's intervals are satisfied by the given regulator state.
 
-    @param context_intervals: List of intervals (integers or "*").
-    @param regulator_state: List of current regulator activity levels.
+    @param context_intervals: List of indices of activity intervals (integers or "*").
+    @param regulators Mapping of regulators' names and corresponding activity thresholds
+    @param regulator_values: Mapping of regulators' names and current activity levels.
     @return: True if context is satisfied, False otherwise.
     """
-    return all(
-        ci == "*" or ci == rs
-        for ci, rs in zip(context_intervals, regulator_state)
-    )
+    for i in range(len(context_intervals)):
+        if context_intervals[i] == '*':
+            continue
+        ci = int(context_intervals[i])
+        var, thresholds = regulators[i].get("variable"), regulators[i].get("thresholds")
+        value = regulator_values.get(var)
+        # insert the value into activity intervals and compare with context value
+        if bisect_right(thresholds, value) + 1 != ci:
+            return False
+
+    return True
+

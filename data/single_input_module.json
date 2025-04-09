@@ -1,0 +1,36 @@
+{
+  "network": {
+    "variables": {
+      "TF": 4,
+      "GeneA": 3,
+      "GeneB": 3
+    },
+    "regulations": [
+      {
+        "target": "GeneA",
+        "regulators": [{ "variable": "TF", "thresholds": [1, 3] }],
+        "contexts": [
+          { "intervals": ["0"], "target_value": 0 },
+          { "intervals": ["1"], "target_value": 1 },
+          { "intervals": ["2"], "target_value": 2 },
+          { "intervals": ["3"], "target_value": 2 }
+        ]
+      },
+      {
+        "target": "GeneB",
+        "regulators": [{ "variable": "TF", "thresholds": [2, 3] }],
+        "contexts": [
+          { "intervals": ["0"], "target_value": 0 },
+          { "intervals": ["1"], "target_value": 1 },
+          { "intervals": ["2"], "target_value": 2 },
+          { "intervals": ["3"], "target_value": 2 }
+        ]
+      }
+    ]
+  },
+  "formula": "",
+  "init_states": {}
+}
+
+
+
