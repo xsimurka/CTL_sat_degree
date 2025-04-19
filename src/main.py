@@ -1,88 +1,10 @@
+import sys
 import json
 from math import inf
-from src.multivalued_network import StateTransitionGraph, MvGRNParser
-#from src.lark_ctl_parser import parse_formula
-#from src.quantitative_ctl import model_check, KripkeStructure
+from src.multivalued_grn import StateTransitionGraph, MvGRNParser
+from src.lark_ctl_parser import parse_formula
+from src.quantitative_ctl import model_check, KripkeStructure
 import itertools
-#import networkx as nx
-from visualization import visualize_stg_pyvis
-
-json_string = '''
-{
-  "network": {
-    "variables": {
-      "gene1": 3,
-      "gene2": 3,
-      "gene3": 2,
-      "gene4": 3
-    },
-    "regulations": [
-      {
-        "target": "gene1",
-        "regulators": [
-          { "variable": "gene2", "thresholds": [1, 2] },
-          { "variable": "gene3", "thresholds": [1, 2] }
-        ],
-        "contexts": [
-          { "intervals": [2, 1], "target_value": 0 },
-          { "intervals": [1, 1], "target_value": 1 },
-          { "intervals": [1, 2], "target_value": 2 },
-          { "intervals": [2, 2], "target_value": 2 },
-          { "intervals": ["*", "*"], "target_value": 2 }
-        ]
-      },
-      {
-        "target": "gene2",
-        "regulators": [
-          { "variable": "gene1", "thresholds": [1, 2] },
-          { "variable": "gene4", "thresholds": [1] }
-        ],
-        "contexts": [
-          { "intervals": [1, "*"], "target_value": 2 },
-          { "intervals": [2, "*"], "target_value": 1 },
-          { "intervals": ["*", 1], "target_value": 1 },
-          { "intervals": ["*", 2], "target_value": 0 },
-          { "intervals": [1, 1], "target_value": 2 },
-          { "intervals": [2, 1], "target_value": 1 }
-        ]
-      },
-      {
-        "target": "gene3",
-        "regulators": [
-          { "variable": "gene1", "thresholds": [1, 2] },
-          { "variable": "gene4", "thresholds": [2] }
-        ],
-        "contexts": [
-          { "intervals": [1, "*"], "target_value": 0 },
-          { "intervals": [2, "*"], "target_value": 2 },
-          { "intervals": ["*", 2], "target_value": 1 },
-          { "intervals": [3, 2], "target_value": 0 },
-          { "intervals": ["*", 1], "target_value": 0 }
-        ]
-      },
-      {
-        "target": "gene4",
-        "regulators": [
-          { "variable": "gene2", "thresholds": [2] },
-          { "variable": "gene3", "thresholds": [1] }
-        ],
-        "contexts": [
-          { "intervals": [1, 1], "target_value": 2 },
-          { "intervals": [2, 2], "target_value": 0 },
-          { "intervals": ["*", "*"], "target_value": 1 }
-        ]
-      }
-    ]
-  },
-  "formula": "AG (gene1 <= 3 && gene2 >= 1)",
-  "initial_states": {
-    "gene1": 1,
-    "gene2": 2,
-    "gene3": 0,
-    "gene4": 1
-  }
-}
-'''
 
 
 def validate_initial_states(initial_states, mvgrn):
@@ -151,29 +73,30 @@ def format_result(formulae_evaluations, initial_states, formula) -> None:
     print("Average value among initial states:", cumulative / len(initial_states))
 
 
-def main(json_file):
+def main():
     """
     Main function to load data, parse formulas, validate states, generate states, build Kripke structure,
     perform model checking, and print results.
-
-    @param json_file: Path to the JSON file containing input data
     """
-    with open(json_file, 'r') as file:
+    if len(sys.argv) != 2:
+        print("Script expects exactly one argument - path to json file.")
+        exit(1)
+
+    with open(sys.argv[1], 'r') as file:
         json_data = json.load(file)
 
-    #formula = json_data.get("formula")
-    #parsed_formula = parse_formula(formula)
-    #positive_formula = parsed_formula.eliminate_negation()
+    formula = json_data.get("formula")
+    parsed_formula = parse_formula(formula)
+    positive_formula = parsed_formula.eliminate_negation()
     network_data = json_data.get("network")
     mvgrn = MvGRNParser(network_data).parse()
-    #validate_initial_states(json_data.get("initial_states"), mvgrn)
+    validate_initial_states(json_data.get("initial_states"), mvgrn)
     stg = StateTransitionGraph(mvgrn)
-    #initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
-    #ks = KripkeStructure(stg, initial_states)
-    #formulae_evaluations = model_check(ks, positive_formula)
-    #format_result(formulae_evaluations, ks.init_states, positive_formula)
-    visualize_stg_pyvis(stg.graph)
+    initial_states = generate_initial_states(json_data.get("initial_states"), json_data.get("network").get("variables"))
+    ks = KripkeStructure(stg, initial_states)
+    formulae_evaluations = model_check(ks, positive_formula)
+    format_result(formulae_evaluations, ks.init_states, positive_formula)
+
 
 if __name__ == "__main__":
-    json_file = "../data/dense_overlapping_regions.json"
-    main(json_file)
+    main()

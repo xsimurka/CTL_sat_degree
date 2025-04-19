@@ -91,7 +91,7 @@ def weighted_distance(state: StateType, border: SubspaceType, max_activities: Li
     return float('inf')  # If no border state is found, return infinity
 
 
-def find_extreme_state(dov: SubspaceType, co_border: SubspaceType, max_act_values: List[int]) -> float:
+def find_extreme_depth(dov: SubspaceType, co_border: SubspaceType, max_act_values: List[int]) -> float:
     """
     Find the state with the maximum minimal weighted distance to the border of the state set.
 
@@ -105,11 +105,11 @@ def find_extreme_state(dov: SubspaceType, co_border: SubspaceType, max_act_value
     @return: The maximal minimal weighted distance to the border among states.
     """
     weights = [1 / max_activity for max_activity in max_act_values]
-    dp = {state: inf for state in dov.union(co_border)}
+    distances = {state: inf for state in dov.union(co_border)}
     queue = MinPriorityQueue()
 
     for state in co_border:
-        dp[state] = 0  # Distance of border states is 0
+        distances[state] = 0  # Distance of border states is 0
         queue.decrease_priority(state, 0)
 
     while not queue.is_empty():
@@ -118,9 +118,9 @@ def find_extreme_state(dov: SubspaceType, co_border: SubspaceType, max_act_value
             if neighbor not in dov:
                 continue
             new_distance = current_distance + step_size
-            if dp[neighbor] > new_distance:
-                dp[neighbor] = new_distance
+            if distances[neighbor] > new_distance:
+                distances[neighbor] = new_distance
                 queue.decrease_priority(neighbor, new_distance)
 
-    extreme = max(dp[state] for state in dov)
+    extreme = max(distances[state] for state in dov)
     return extreme

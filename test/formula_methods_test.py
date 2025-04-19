@@ -89,41 +89,41 @@ class TestYieldDov(unittest.TestCase):
         self.max_activities = {"x": 3, "y": 2, "z": 2}
         self.dov = [list(range(v + 1)) for v in self.max_activities.values()]
 
-    #def test_atomic_proposition_ge(self):
-    #     formula = AtomicProposition("x", ">=", 5)
-    #     expected_dov = [list(range(5, 11)), list(range(6))]
-    #     self.assertEqual(formula.yield_dov(deepcopy(self.dov), self.max_activities), expected_dov)
-    #
-    # def test_atomic_proposition_le(self):
-    #     formula = AtomicProposition("y", "<=", 3)
-    #     expected_dov = [list(range(11)), list(range(4))]
-    #     self.assertEqual(formula.yield_dov(deepcopy(self.dov), self.max_activities), expected_dov)
+    def test_atomic_proposition_ge(self):
+        formula = AtomicProposition("x", ">=", 5)
+        expected_dov = [list(range(5, 11)), list(range(6))]
+        self.assertEqual(formula.compute_dov(self.max_activities), expected_dov)
+
+    def test_atomic_proposition_le(self):
+        formula = AtomicProposition("y", "<=", 3)
+        expected_dov = [list(range(11)), list(range(4))]
+        self.assertEqual(formula.compute_dov(self.max_activities), expected_dov)
 
     def test_union(self):
         formula1 = AtomicProposition("x", "<=", 0)
         formula2 = AtomicProposition("y", "<=", 0)
         union_formula = Union(formula1, formula2)
         expected_dov = [[0], [0], [0, 1, 2]]
-        x = union_formula.compute_dov(deepcopy(self.dov), self.max_activities)
+        x = union_formula.compute_dov(self.max_activities)
         self.assertEqual(x, expected_dov)
 
-    # def test_intersection(self):
-    #     formula1 = AtomicProposition("x", ">=", 3)
-    #     formula2 = AtomicProposition("x", "<=", 7)
-    #     intersection_formula = Intersection(formula1, formula2)
-    #     expected_dov = [sorted(set(range(3, 8))), list(range(6))]
-    #     self.assertEqual(intersection_formula.yield_dov(deepcopy(self.dov), self.max_activities), expected_dov)
-    #
-    # def test_complex_union_intersection(self):
-    #     formula1 = AtomicProposition("x", ">=", 7)
-    #     formula2 = AtomicProposition("x", "<=", 3)
-    #     formula3 = AtomicProposition("y", "<=", 4)
-    #     formula4 = AtomicProposition("y", ">=", 2)
-    #     union_formula1 = Union(formula1, formula2)
-    #     union_formula2 = Intersection(formula3, formula4)
-    #     complex_formula = Intersection(union_formula1, union_formula2)
-    #     expected_dov = [[0, 1, 2, 3, 7, 8, 9, 10], [2, 3, 4]]
-    #     self.assertEqual(complex_formula.yield_dov(deepcopy(self.dov), self.max_activities), expected_dov)
+    def test_intersection(self):
+        formula1 = AtomicProposition("x", ">=", 3)
+        formula2 = AtomicProposition("x", "<=", 7)
+        intersection_formula = Intersection(formula1, formula2)
+        expected_dov = [sorted(set(range(3, 8))), list(range(6))]
+        self.assertEqual(intersection_formula.compute_dov(self.max_activities), expected_dov)
+
+    def test_complex_union_intersection(self):
+        formula1 = AtomicProposition("x", ">=", 7)
+        formula2 = AtomicProposition("x", "<=", 3)
+        formula3 = AtomicProposition("y", "<=", 4)
+        formula4 = AtomicProposition("y", ">=", 2)
+        union_formula1 = Union(formula1, formula2)
+        union_formula2 = Intersection(formula3, formula4)
+        complex_formula = Intersection(union_formula1, union_formula2)
+        expected_dov = [[0, 1, 2, 3, 7, 8, 9, 10], [2, 3, 4]]
+        self.assertEqual(complex_formula.compute_dov(self.max_activities), expected_dov)
 
 
 if __name__ == '__main__':

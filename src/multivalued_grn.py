@@ -23,6 +23,10 @@ class MvGRNParser:
         self.variables = None
         self.regulations = None
 
+    @property
+    def variable_names(self):
+        return set() if self.variables is None else set(self.variables.keys())
+
     def parse(self):
         """
         Parse and validate JSON data. Return a MultivaluedGRN object.
@@ -38,19 +42,19 @@ class MvGRNParser:
 
     @staticmethod
     def _validate_variables(variables):
-        """Validate variables are a dict and each has a positive integer max value."""
+        """Validate variables is a JSON object and each has a positive integer max value."""
         if not isinstance(variables, dict):
-            raise ValueError("'variables' must be a dictionary.")
+            raise ValueError("'variables' must be a JSON object.")
 
-        for gene, max_value in variables.items():
+        for name, max_value in variables.items():
             if not isinstance(max_value, int) or max_value <= 0:
-                raise ValueError(f"Invalid max activity value for '{gene}': {max_value}. Must be an integer > 0.")
+                raise ValueError(f"Invalid max activity value for '{name}': {max_value}. Must be an integer > 0.")
         return variables
 
     def _validate_regulations(self, regulations):
         """Validate regulations structure and contents."""
         if not isinstance(regulations, list):
-            raise ValueError("'regulations' must be a list.")
+            raise ValueError("Field 'regulations' must be a JSON array.")
 
         for regulation in regulations:
             self._validate_regulation(regulation)
@@ -63,7 +67,7 @@ class MvGRNParser:
             raise ValueError("Each regulation must have 'target', 'regulators', and 'contexts' fields.")
 
         target = regulation["target"]
-        if target not in self.variables:
+        if target not in self.variable_names:
             raise ValueError(f"Target gene '{target}' is not defined in 'variables'.")
 
         regulators = regulation["regulators"]
@@ -89,17 +93,20 @@ class MvGRNParser:
         gene = regulator["variable"]
         thresholds = regulator["thresholds"]
 
-        if gene not in self.variables:
+        if gene not in self.variable_names:
             raise ValueError(f"Regulator gene '{gene}' is not defined in 'variables'.")
 
         max_value = self.variables[gene]
         if not all(isinstance(t, int) and 0 < t <= max_value for t in thresholds):
             raise ValueError(f"Invalid thresholds {thresholds} for '{gene}'. Must be within [1, {max_value}].")
 
+        if not all(x < y for x, y in zip(thresholds, thresholds[1:])):
+            raise ValueError(f"Invalid thresholds {thresholds} for '{gene}'. Thresholds must be ascending.")
+
     def _validate_contexts(self, contexts, target, regulators):
         """Validate all contexts in the regulation."""
         if not isinstance(contexts, list):
-            raise ValueError("'contexts' must be a list.")
+            raise ValueError("Field 'contexts' must be a JSON array.")
 
         target_max = self.variables[target]
 
@@ -119,7 +126,7 @@ class MvGRNParser:
         if not (0 <= target_value <= target_max):
             raise ValueError(f"Target value '{target_value}' must be in range [0, {target_max}].")
 
-        if not (isinstance(intervals, list) for x in intervals):  # and all(isinstance(x, int) or x == "*" for x in intervals)):
+        if not isinstance(intervals, list) or not all((isinstance(x, int) or x == "*") for x in intervals):
             raise ValueError(f"Intervals {intervals} must be a list of integers or '*'.")
 
         if len(intervals) != len(regulators):
@@ -141,10 +148,18 @@ class StateTransitionGraph:
         """
         Initialize the state transition graph from a MultivaluedGRN object.
         """
-        self.variables = grn.variables
+        self.variables = grn.variables  # dict
         self.regulations = {reg["target"]: reg for reg in grn.regulations}
         self.states = list(self._generate_all_states())
         self.graph = self._construct_graph()
+
+    @property
+    def variable_names(self):
+        return list(self.variables.keys())
+
+    @property
+    def max_activity_values(self):
+        return list(self.variables.values())
 
     def _generate_all_states(self):
         """
@@ -152,7 +167,7 @@ class StateTransitionGraph:
 
         @return: Iterator over state tuples.
         """
-        domains = [range(max_value + 1) for max_value in self.variables.values()]
+        domains = [range(max_value + 1) for max_value in self.max_activity_values]
         return itertools.product(*domains)
 
     def _construct_graph(self):
@@ -166,8 +181,8 @@ class StateTransitionGraph:
 
         for state in self.states:
             successors = self._compute_state_successors(state)
-            if not successors:
-                successors = [state]  # Should never happen now
+            if not successors:  # if state has no other successors, it has a single successor - itself
+                successors = [state]
 
             for succ in successors:
                 G.add_edge(state, succ)
@@ -182,31 +197,26 @@ class StateTransitionGraph:
         @return: List of successor states.
         """
         successors = []
-        variable_names = list(self.variables.keys())
 
-        for idx, gene in enumerate(variable_names):
-            current_val = state[idx]
-            regulation = self.regulations.get(gene)
+        for var_idx, var_name in enumerate(self.variable_names):
+            curr_var_val = state[var_idx]
+            regulation = self.regulations.get(var_name)
 
-            if not regulation:
-                continue  # No regulation → static input
+            if regulation is None:
+                continue  # static input variable
 
-            regulators_names = [r["variable"] for r in regulation["regulators"]]
-            regulators_indices = [variable_names.index(rn) for rn in regulators_names]
-            regulators_values = {regulators_names[i]: state[i] for i in regulators_indices}
-
+            regulators_names = [reg["variable"] for reg in regulation["regulators"]]
+            regulators_indices = [self.variable_names.index(rn) for rn in regulators_names]
+            regulators_values = [state[i] for i in regulators_indices]
             next_state = list(state)
             for context in regulation["contexts"]:
                 if is_context_satisfied(context["intervals"], regulation["regulators"], regulators_values):
                     target_val = context["target_value"]
-                    delta = target_val - current_val
-                    next_state[idx] = current_val + int(math.copysign(1, delta)) if delta != 0 else 0
-                    successors.append(tuple(next_state))
-                    break  # First matching context determines transition
-            else:  # no context matched
-                delta = regulation.get("basal", 0) - current_val
-                next_state[idx] = current_val + int(math.copysign(1, delta)) if delta != 0 else 0
-                successors.append(tuple(next_state))
+                    delta = target_val - curr_var_val
+                    if delta != 0:  # only append if the transition is not self loop (they are handled separately)
+                        next_state[var_idx] = curr_var_val + int(math.copysign(1, delta))
+                        successors.append(tuple(next_state))
+                    break  # terminate after first matching context found
 
         return successors
 
@@ -217,18 +227,17 @@ def is_context_satisfied(context_intervals, regulators, regulator_values):
 
     @param context_intervals: List of indices of activity intervals (integers or "*").
     @param regulators Mapping of regulators' names and corresponding activity thresholds
-    @param regulator_values: Mapping of regulators' names and current activity levels.
+    @param regulator_values: List of regulators' activity levels in current state.
     @return: True if context is satisfied, False otherwise.
     """
     for i in range(len(context_intervals)):
         if context_intervals[i] == '*':
             continue
         ci = int(context_intervals[i])
-        var, thresholds = regulators[i].get("variable"), regulators[i].get("thresholds")
-        value = regulator_values.get(var)
+        thresholds = regulators[i].get("thresholds")
+        value = regulator_values[i]
         # insert the value into activity intervals and compare with context value
         if bisect_right(thresholds, value) + 1 != ci:
             return False
 
     return True
-

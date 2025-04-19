@@ -1,0 +1,38 @@
+{
+  "network": {
+    "variables": {
+      "A": 2,
+      "B": 2
+    },
+    "regulations": [
+      {
+        "target": "A",
+        "regulators": [
+          { "variable": "A", "thresholds": [1] },
+          { "variable": "B", "thresholds": [1] }
+        ],
+        "contexts": [
+          { "intervals": ["1", "1"], "target_value": 1 },
+          { "intervals": ["2", "1"], "target_value": 2 },
+          { "intervals": ["1", "2"], "target_value": 0 },
+          { "intervals": ["2", "2"], "target_value": 1 }
+        ]
+      },
+      {
+        "target": "B",
+        "regulators": [
+          { "variable": "B", "thresholds": [1] },
+          { "variable": "A", "thresholds": [1] }
+        ],
+        "contexts": [
+          { "intervals": ["1", "1"], "target_value": 1 },
+          { "intervals": ["2", "1"], "target_value": 2 },
+          { "intervals": ["1", "2"], "target_value": 0 },
+          { "intervals": ["2", "2"], "target_value": 1 }
+        ]
+      }
+    ]
+  },
+  "formula": "",
+  "init_states": {}
+}

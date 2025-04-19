@@ -12,7 +12,7 @@
         "target": "TF",
         "regulators": [],
         "contexts": [
-          { "intervals": [], "target_value": 7 }
+          { "intervals": [], "target_value":  7 }
         ]
       },
       {

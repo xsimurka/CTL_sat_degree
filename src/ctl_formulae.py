@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List
 from itertools import product
 from src.quantitative_ctl import KripkeStructure
-from src.satisfaction_degree import weighted_distance, find_extreme_state, get_border_states
+from src.satisfaction_degree import weighted_distance, find_extreme_depth, get_border_states
 from src.custom_types import SubspaceType, QuantLabelingFnType, MaxActivitiesType
 from src.priority_queue import MinPriorityQueue, MaxPriorityQueue
 
@@ -20,11 +20,16 @@ class StateFormula(ABC):
     @abstractmethod
     def eliminate_negation(self) -> 'StateFormula':
         """
-        Eliminates negation from the formula, returning an equivalent negation-free formula.
+        Transforms the formula into an equivalent form without explicit negations.
 
-        @return StateFormula: A transformed version of the formula without negations.
+        This method recursively replaces negated formulas with their logically
+        equivalent forms using De Morgan’s laws and operator dualities, eliminating the
+        use of the Negation class entirely. The returned formula is guaranteed not to
+        contain any instances of Negation.
+
+        @return StateFormula: A logically equivalent formula with all negations eliminated.
         """
-        pass
+        ...
 
     @abstractmethod
     def get_subformulae(self) -> List['StateFormula']:
@@ -35,7 +40,7 @@ class StateFormula(ABC):
 
         @return A list of subformulae, where each element is an instance of StateFormula.
         """
-        pass
+        ...
 
     @abstractmethod
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
@@ -46,8 +51,7 @@ class StateFormula(ABC):
         @param formulae_evaluations: A data structure storing the evaluation results for states.
         @return None: The function modifies formulae_evaluations in place.
         """
-        pass
-
+        ...
 
 
 class AtomicFormula(StateFormula):
@@ -65,13 +69,24 @@ class AtomicFormula(StateFormula):
         @param max_activities: The maximum possible values for each variable.
         @return: Updated domain of validity.
         """
-        pass
+        ...
 
-    def get_subformulae(self) -> List['StateFormula']:
+    @abstractmethod
+    def negate(self) -> 'AtomicFormula':
         """
-        Returns the subformulae of the atomic formula.
+        Returns the logical negation of the atomic formula.
 
-        Since atomic formulas are indivisible, they return themselves.
+        This method constructs a new formula that represents the logical negation
+        of the current one. It does not eliminate the negation, but returns a
+        syntactic representation that can later be transformed via eliminate_negation().
+
+        @return AtomicFormula: A formula logically equivalent to the negation of the current one.
+        """
+        ...
+
+    def get_subformulae(self) -> List[StateFormula]:
+        """
+        Returns the subformulae of the atomic formula. Since atomic formulas are indivisible, they return themselves.
 
         @return: List containing only this formula.
         """
@@ -79,7 +94,7 @@ class AtomicFormula(StateFormula):
 
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         """
-        Evaluates the atomic formula in a given Kripke structure.
+        Evaluates the atomic formula in a given Kripke structure. Updates formulae_evaluations.
 
         @param ks: The Kripke structure to evaluate against.
         @param formulae_evaluations: A mapping of states to formula evaluations.
@@ -87,8 +102,8 @@ class AtomicFormula(StateFormula):
         dov = self.compute_dov(ks.stg.variables)
         co_dov = self.compute_dov_complement(dov, ks.stg.variables)
         dov_b, co_dov_b = get_border_states(dov, list(ks.stg.variables.values()))
-        max_depth = find_extreme_state(dov, co_dov_b, list(ks.stg.variables.values()))
-        max_dist = find_extreme_state(co_dov, dov_b, list(ks.stg.variables.values()))
+        max_depth = find_extreme_depth(dov, co_dov_b, list(ks.stg.variables.values()))
+        max_dist = find_extreme_depth(co_dov, dov_b, list(ks.stg.variables.values()))
         for state in ks.stg.states:
             if state in dov:
                 wd = weighted_distance(state, co_dov_b, list(ks.stg.variables.values()))
@@ -97,17 +112,12 @@ class AtomicFormula(StateFormula):
                 wd = weighted_distance(state, dov_b, list(ks.stg.variables.values()))
                 formulae_evaluations[state][repr(self)] = -wd / max_dist if max_depth > 0 else 0
 
-
     @staticmethod
     def compute_dov_complement(dov, max_activities) -> SubspaceType:
         """Returns the complement of the given set of states within the valid space."""
         variables = list(max_activities.keys())  # Ensure correct order
         full_space = set(product(*(range(max_activities[var] + 1) for var in variables)))
         return full_space - dov
-
-    @abstractmethod
-    def negate(self):
-        pass
 
 
 class AtomicProposition(AtomicFormula):
@@ -130,7 +140,7 @@ class AtomicProposition(AtomicFormula):
             domains.append(valid_values if var == self.variable else range(0, max_activities[var] + 1))
         return set(product(*domains))
 
-    def eliminate_negation(self) -> 'AtomicFormula':
+    def eliminate_negation(self) -> StateFormula:
         return self
 
     def negate(self):
@@ -151,15 +161,15 @@ class Negation(AtomicFormula):
         raise NotImplementedError("Negation must be eliminated before calling yield_dov.")
 
     def eliminate_negation(self) -> AtomicFormula:
-        if isinstance(self.operand, Negation):
-            return self.operand.operand.eliminate_negation()
-        return self
+        negated = self.operand.negate()
+        negated.eliminate_negation()
+        return negated
 
     def get_subformulae(self) -> List['StateFormula']:
         raise NotImplementedError("Negation must be eliminated before calling get_subformulae.")
 
     def negate(self):
-        return self.operand.negate()
+        return self.operand
 
 
 class Union(AtomicFormula):
@@ -176,10 +186,6 @@ class Union(AtomicFormula):
         return left_dov.union(right_dov)
 
     def eliminate_negation(self) -> AtomicFormula:
-        if isinstance(self.left, Negation):
-            self.left = self.left.negate()
-        if isinstance(self.right, Negation):
-            self.right = self.right.negate()
         self.left = self.left.eliminate_negation()
         self.right = self.right.eliminate_negation()
         return self
@@ -202,10 +208,6 @@ class Intersection(AtomicFormula):
         return left_dov.intersection(right_dov)
 
     def eliminate_negation(self) -> AtomicFormula:
-        if isinstance(self.left, Negation):
-            self.left = self.left.negate()
-        if isinstance(self.right, Negation):
-            self.right = self.right.negate()
         self.left = self.left.eliminate_negation()
         self.right = self.right.eliminate_negation()
         return self
@@ -232,75 +234,21 @@ class Boolean(StateFormula):
             formulae_evaluations[state][repr(self)] = 1 if self.value else -1
 
 
-class Conjunction(StateFormula):
-    def __init__(self, left: StateFormula, right: StateFormula):
-        self.left = left
-        self.right = right
-
-    def __repr__(self) -> str:
-        return f"({repr(self.left)} && {repr(self.right)})"
-
-    def eliminate_negation(self) -> 'StateFormula':
-        if isinstance(self.left, Negation):
-            self.left = self.left.negate()
-        if isinstance(self.right, Negation):
-            self.right = self.right.negate()
-        self.left = self.left.eliminate_negation()
-        self.right = self.right.eliminate_negation()
-        return self
-
-    def get_subformulae(self) -> List['StateFormula']:
-        sub_left = self.left.get_subformulae()
-        sub_right = self.right.get_subformulae()
-        return sub_left + sub_right + [self]
-
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
-        for state in ks.stg.states:
-            formulae_evaluations[state][repr(self)] = min(formulae_evaluations[state][repr(self.left)], formulae_evaluations[state][repr(self.right)])
-
-
-class Disjunction(StateFormula):
-    def __init__(self, left: StateFormula, right: StateFormula):
-        self.left = left
-        self.right = right
-
-    def __repr__(self) -> str:
-        return f"({repr(self.left)} || {repr(self.right)})"
-
-    def eliminate_negation(self) -> 'StateFormula':
-        if isinstance(self.left, Negation):
-            self.left = self.left.negate()
-        if isinstance(self.right, Negation):
-            self.right = self.right.negate()
-        self.left = self.left.eliminate_negation()
-        self.right = self.right.eliminate_negation()
-        return self
-
-    def get_subformulae(self) -> List['StateFormula']:
-        sub_left = self.left.get_subformulae()
-        sub_right = self.right.get_subformulae()
-        return sub_left + sub_right + [self]
-
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
-        for state in ks.stg.states:
-            formulae_evaluations[state][repr(self)] = max(formulae_evaluations[state][repr(self.left)], formulae_evaluations[state][repr(self.right)])
-
-
-class AG(StateFormula):
+class UnaryOperator(StateFormula, ABC):
     def __init__(self, operand: StateFormula):
         self.operand = operand
 
-    def __repr__(self) -> str:
-        return f"AG ({repr(self.operand)})"
+    def get_subformulae(self) -> List['StateFormula']:
+        return self.operand.get_subformulae() + [self]
 
     def eliminate_negation(self) -> 'StateFormula':
-        if isinstance(self.operand, Negation):
-            self.operand = self.operand.negate()
         self.operand = self.operand.eliminate_negation()
         return self
 
-    def get_subformulae(self) -> List['StateFormula']:
-        return self.operand.get_subformulae() + [self]
+
+class AG(UnaryOperator):
+    def __repr__(self) -> str:
+        return f"AG ({repr(self.operand)})"
 
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         queue = MinPriorityQueue()
@@ -313,7 +261,8 @@ class AG(StateFormula):
         while queue.heap:
             state, _ = queue.extract_min()
             succs = ks.stg.graph.successors(state)
-            min_value = min([formulae_evaluations[s][repr(self.operand)] for s in succs])  # all needs minimal value of operand
+            min_value = min(
+                [formulae_evaluations[s][repr(self.operand)] for s in succs])  # all needs minimal value of operand
             # if state has no value yet or propagated minimal value is smaller than actual best, replace it and notify predecessors
             if min_value < formulae_evaluations[state][repr(self)]:
                 formulae_evaluations[state][repr(self)] = min_value  # replace the original value
@@ -322,21 +271,9 @@ class AG(StateFormula):
                     queue.decrease_priority(p, formulae_evaluations[state][repr(self.operand)])
 
 
-class EG(StateFormula):
-    def __init__(self, operand: StateFormula):
-        self.operand = operand
-
+class EG(UnaryOperator):
     def __repr__(self) -> str:
         return f"EG ({repr(self.operand)})"
-
-    def eliminate_negation(self) -> 'StateFormula':
-        if isinstance(self.operand, Negation):
-            self.operand = self.operand.negate()
-        self.operand = self.operand.eliminate_negation()
-        return self
-
-    def get_subformulae(self) -> List['StateFormula']:
-        return self.operand.get_subformulae() + [self]
 
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         queue = MinPriorityQueue()
@@ -349,7 +286,8 @@ class EG(StateFormula):
         while queue.heap:
             state, _ = queue.extract_min()
             succs = ks.stg.graph.successors(state)
-            max_value = max([formulae_evaluations[s][repr(self.operand)] for s in succs])  # exists needs maximal value of operand
+            max_value = max(
+                [formulae_evaluations[s][repr(self.operand)] for s in succs])  # exists needs maximal value of operand
             # if state has no value yet or propagated maximal value is smaller than actual best, replace it and notify predecessors
             if max_value < formulae_evaluations[state][repr(self)]:
                 formulae_evaluations[state][repr(self)] = max_value  # replace the original value
@@ -358,57 +296,34 @@ class EG(StateFormula):
                     queue.decrease_priority(p, formulae_evaluations[state][repr(self.operand)])
 
 
-class AF(StateFormula):
-    def __init__(self, operand: StateFormula):
-        self.operand = operand
-
+class AF(UnaryOperator):
     def __repr__(self) -> str:
         return f"AF ({repr(self.operand)})"
 
-    def eliminate_negation(self) -> 'StateFormula':
-        if isinstance(self.operand, Negation):
-            self.operand = self.operand.negate()
-        self.operand = self.operand.eliminate_negation()
-        return self
-
-    def get_subformulae(self) -> List['StateFormula']:
-        return self.operand.get_subformulae() + [self]
-
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
+    def evaluate(self, ks: KripkeStructure, quantitative_labeling: QuantLabelingFnType) -> None:
         queue = MaxPriorityQueue()
         for state in ks.stg.states:
-            formulae_evaluations[state][repr(self)] = formulae_evaluations[state][repr(self.operand)]
+            quantitative_labeling[state][repr(self)] = quantitative_labeling[state][repr(self.operand)]
             predcs = ks.stg.graph.predecessors(state)
             for p in predcs:
-                queue.increase_priority(p, formulae_evaluations[state][repr(self.operand)])
+                queue.increase_priority(p, quantitative_labeling[state][repr(self.operand)])
 
         while queue.heap:
             state, _ = queue.extract_max()
             succs = list(ks.stg.graph.successors(state))
-            min_value = min([formulae_evaluations[s][repr(self.operand)] for s in succs])  # all needs minimal value of operand
+            min_value = min(
+                [quantitative_labeling[s][repr(self.operand)] for s in succs])  # all needs minimal value of operand
             # if state has no value yet or propagated minimal value is greater than actual best, replace it and notify predecessors
-            if min_value > formulae_evaluations[state][repr(self)]:
-                formulae_evaluations[state][repr(self)] = min_value  # replace the original value
+            if min_value > quantitative_labeling[state][repr(self)]:
+                quantitative_labeling[state][repr(self)] = min_value  # replace the original value
                 predcs = ks.stg.graph.predecessors(state)
                 for p in predcs:
-                    queue.increase_priority(p, formulae_evaluations[state][repr(self.operand)])
+                    queue.increase_priority(p, quantitative_labeling[state][repr(self.operand)])
 
 
-class EF(StateFormula):
-    def __init__(self, operand: StateFormula):
-        self.operand = operand
-
+class EF(UnaryOperator):
     def __repr__(self) -> str:
         return f"EF ({repr(self.operand)})"
-
-    def eliminate_negation(self) -> 'StateFormula':
-        if isinstance(self.operand, Negation):
-            self.operand = self.operand.negate()
-        self.operand = self.operand.eliminate_negation()
-        return self
-
-    def get_subformulae(self) -> List['StateFormula']:
-        return self.operand.get_subformulae() + [self]
 
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         queue = MaxPriorityQueue()
@@ -421,7 +336,8 @@ class EF(StateFormula):
         while queue.heap:
             state, _ = queue.extract_max()
             succs = ks.stg.graph.successors(state)
-            max_value = max([formulae_evaluations[s][repr(self.operand)] for s in succs])  # exists needs maximal value of operand
+            max_value = max(
+                [formulae_evaluations[s][repr(self.operand)] for s in succs])  # exists needs maximal value of operand
             # if state has no value yet or propagated maximal value is greater than actual best, replace it and notify predecessors
             if max_value > formulae_evaluations[state][repr(self)]:
                 formulae_evaluations[state][repr(self)] = max_value  # replace the original value
@@ -430,21 +346,9 @@ class EF(StateFormula):
                     queue.increase_priority(p, formulae_evaluations[state][repr(self.operand)])
 
 
-class AX(StateFormula):
-    def __init__(self, operand: StateFormula):
-        self.operand = operand
-
+class AX(UnaryOperator):
     def __repr__(self) -> str:
         return f"AX ({repr(self.operand)})"
-
-    def eliminate_negation(self) -> 'StateFormula':
-        if isinstance(self.operand, Negation):
-            self.operand = self.operand.negate()
-        self.operand = self.operand.eliminate_negation()
-        return self
-
-    def get_subformulae(self) -> List['StateFormula']:
-        return self.operand.get_subformulae() + [self]
 
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         for state in ks.stg.states:
@@ -452,21 +356,9 @@ class AX(StateFormula):
             formulae_evaluations[state][repr(self)] = min([formulae_evaluations[s][repr(self.operand)] for s in succs])
 
 
-class EX(StateFormula):
-    def __init__(self, operand: StateFormula):
-        self.operand = operand
-
+class EX(UnaryOperator):
     def __repr__(self) -> str:
         return f"EX ({repr(self.operand)})"
-
-    def eliminate_negation(self) -> 'StateFormula':
-        if isinstance(self.operand, Negation):
-            self.operand = self.operand.negate()
-        self.operand = self.operand.eliminate_negation()
-        return self
-
-    def get_subformulae(self) -> List['StateFormula']:
-        return self.operand.get_subformulae() + [self]
 
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         for state in ks.stg.states:
@@ -474,27 +366,45 @@ class EX(StateFormula):
             formulae_evaluations[state][repr(self)] = max([formulae_evaluations[s][repr(self.operand)] for s in succs])
 
 
-class AU(StateFormula):
+class BinaryOperator(StateFormula, ABC):
     def __init__(self, left: StateFormula, right: StateFormula):
         self.left = left
         self.right = right
-
-    def __repr__(self) -> str:
-        return f"A ({repr(self.left)}) U ({repr(self.right)})"
-
-    def eliminate_negation(self) -> 'StateFormula':
-        if isinstance(self.left, Negation):
-            self.left = self.left.negate()
-        if isinstance(self.right, Negation):
-            self.right = self.right.negate()
-        self.left = self.left.eliminate_negation()
-        self.right = self.right.eliminate_negation()
-        return self
 
     def get_subformulae(self) -> List['StateFormula']:
         sub_left = self.left.get_subformulae()
         sub_right = self.right.get_subformulae()
         return sub_left + sub_right + [self]
+
+    def eliminate_negation(self) -> 'StateFormula':
+        self.right = self.right.eliminate_negation()
+        self.left = self.left.eliminate_negation()
+        return self
+
+
+class Conjunction(BinaryOperator):
+    def __repr__(self) -> str:
+        return f"({repr(self.left)} && {repr(self.right)})"
+
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
+        for state in ks.stg.states:
+            formulae_evaluations[state][repr(self)] = min(formulae_evaluations[state][repr(self.left)],
+                                                          formulae_evaluations[state][repr(self.right)])
+
+
+class Disjunction(BinaryOperator):
+    def __repr__(self) -> str:
+        return f"({repr(self.left)} || {repr(self.right)})"
+
+    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
+        for state in ks.stg.states:
+            formulae_evaluations[state][repr(self)] = max(formulae_evaluations[state][repr(self.left)],
+                                                          formulae_evaluations[state][repr(self.right)])
+
+
+class AU(BinaryOperator):
+    def __repr__(self) -> str:
+        return f"A ({repr(self.left)}) U ({repr(self.right)})"
 
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         queue = MaxPriorityQueue()
@@ -507,9 +417,11 @@ class AU(StateFormula):
         while queue.heap:
             state, _ = queue.extract_max()
             succs = ks.stg.graph.successors(state)
-            min_until_nexts = min([formulae_evaluations[s][repr(self)] for s in succs])  # all takes minimal value of the whole Until from successors
-            left_self, until_self = formulae_evaluations[state][repr(self.left)], formulae_evaluations[state][repr(self)]
-            extend = min(left_self, min_until_nexts)   # tries to extend the prefix with the current left
+            min_until_nexts = min([formulae_evaluations[s][repr(self)] for s in
+                                   succs])  # all takes minimal value of the whole Until from successors
+            left_self, until_self = formulae_evaluations[state][repr(self.left)], formulae_evaluations[state][
+                repr(self)]
+            extend = min(left_self, min_until_nexts)  # tries to extend the prefix with the current left
             if extend > until_self:  # compare the extended prefix with actual value of until, if extension is better, then update
                 formulae_evaluations[state][repr(self)] = extend
                 predcs = ks.stg.graph.predecessors(state)
@@ -517,27 +429,9 @@ class AU(StateFormula):
                     queue.increase_priority(p, extend)
 
 
-class EU(StateFormula):
-    def __init__(self, left: StateFormula, right: StateFormula):
-        self.left = left
-        self.right = right
-
+class EU(BinaryOperator):
     def __repr__(self) -> str:
         return f"E ({repr(self.left)}) U ({repr(self.right)})"
-
-    def eliminate_negation(self) -> 'StateFormula':
-        if isinstance(self.left, Negation):
-            self.left = self.left.negate()
-        if isinstance(self.right, Negation):
-            self.right = self.right.negate()
-        self.left = self.left.eliminate_negation()
-        self.right = self.right.eliminate_negation()
-        return self
-
-    def get_subformulae(self) -> List['StateFormula']:
-        sub_left = self.left.get_subformulae()
-        sub_right = self.right.get_subformulae()
-        return sub_left + sub_right + [self]
 
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         queue = MaxPriorityQueue()
@@ -550,8 +444,10 @@ class EU(StateFormula):
         while queue.heap:
             state, _ = queue.extract_max()
             succs = ks.stg.graph.successors(state)
-            max_until_nexts = max([formulae_evaluations[s][repr(self)] for s in succs])  # exists takes minimal value of the whole Until from successors
-            left_self, until_self = formulae_evaluations[state][repr(self.left)], formulae_evaluations[state][repr(self)]
+            max_until_nexts = max([formulae_evaluations[s][repr(self)] for s in
+                                   succs])  # exists takes minimal value of the whole Until from successors
+            left_self, until_self = formulae_evaluations[state][repr(self.left)], formulae_evaluations[state][
+                repr(self)]
             extend = min(left_self, max_until_nexts)  # tries to extend the prefix with the current left
             if extend > until_self:  # compare the extended prefix with actual value of until, if extension is better, then update
                 formulae_evaluations[state][repr(self)] = extend
@@ -560,27 +456,9 @@ class EU(StateFormula):
                     queue.increase_priority(p, extend)
 
 
-class AW(StateFormula):
-    def __init__(self, left: StateFormula, right: StateFormula):
-        self.left = left
-        self.right = right
-
+class AW(BinaryOperator):
     def __repr__(self) -> str:
         return f"A ({repr(self.left)}) W ({repr(self.right)})"
-
-    def eliminate_negation(self) -> 'StateFormula':
-        if isinstance(self.left, Negation):
-            self.left = self.left.negate()
-        if isinstance(self.right, Negation):
-            self.right = self.right.negate()
-        self.left = self.left.eliminate_negation()
-        self.right = self.right.eliminate_negation()
-        return self
-
-    def get_subformulae(self) -> List['StateFormula']:
-        sub_left = self.left.get_subformulae()
-        sub_right = self.right.get_subformulae()
-        return sub_left + sub_right + [self]
 
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         """The problem here is that you cannot optimize between AG and AU online because you have no guarantee on AG
@@ -593,30 +471,13 @@ class AW(StateFormula):
         ag.evaluate(ks, formulae_evaluations)
         au.evaluate(ks, formulae_evaluations)
         for state in ks.stg.states:
-            formulae_evaluations[state][repr(self)] = max(formulae_evaluations[state][repr(ag)], formulae_evaluations[state][repr(au)])
+            formulae_evaluations[state][repr(self)] = max(formulae_evaluations[state][repr(ag)],
+                                                          formulae_evaluations[state][repr(au)])
 
 
-class EW(StateFormula):
-    def __init__(self, left: StateFormula, right: StateFormula):
-        self.left = left
-        self.right = right
-
+class EW(BinaryOperator):
     def __repr__(self) -> str:
         return f"E ({repr(self.left)}) W ({repr(self.right)})"
-
-    def eliminate_negation(self) -> 'StateFormula':
-        if isinstance(self.left, Negation):
-            self.left = self.left.negate()
-        if isinstance(self.right, Negation):
-            self.right = self.right.negate()
-        self.left = self.left.eliminate_negation()
-        self.right = self.right.eliminate_negation()
-        return self
-
-    def get_subformulae(self) -> List['StateFormula']:
-        sub_left = self.left.get_subformulae()
-        sub_right = self.right.get_subformulae()
-        return sub_left + sub_right + [self]
 
     def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
         """The problem here is that you cannot optimize between EG and EU online because you have no guarantee on EG
@@ -630,4 +491,5 @@ class EW(StateFormula):
         eg.evaluate(ks, formulae_evaluations)
         eu.evaluate(ks, formulae_evaluations)
         for state in ks.stg.states:
-            formulae_evaluations[state][repr(self)] = max(formulae_evaluations[state][repr(eg)], formulae_evaluations[state][repr(eu)])
+            formulae_evaluations[state][repr(self)] = max(formulae_evaluations[state][repr(eg)],
+                                                          formulae_evaluations[state][repr(eu)])

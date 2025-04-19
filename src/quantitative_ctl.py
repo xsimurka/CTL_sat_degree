@@ -32,7 +32,7 @@ def model_check(ks: KripkeStructure, formula) -> QuantLabelingFnType:
     @return: A mapping of states to their evaluation results for each subformula.
     """
     subformulae = formula.get_subformulae()
-    formulae_evaluations = init_formulae_evaluations(ks, [repr(sf) for sf in subformulae])
+    formulae_evaluations = init_quantitative_labels(ks, [repr(sf) for sf in subformulae])
 
     for sf in subformulae:
         sf.evaluate(ks, formulae_evaluations)
@@ -40,7 +40,7 @@ def model_check(ks: KripkeStructure, formula) -> QuantLabelingFnType:
     return formulae_evaluations
 
 
-def init_formulae_evaluations(ks: KripkeStructure, labels: List[str]) -> QuantLabelingFnType:
+def init_quantitative_labels(ks: KripkeStructure, labels: List[str]) -> QuantLabelingFnType:
     """
     Initializes a dictionary to store the evaluation results of formulas for each state in the Kripke structure.
 
