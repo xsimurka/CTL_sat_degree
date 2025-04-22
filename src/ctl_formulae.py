@@ -161,8 +161,7 @@ class Negation(AtomicFormula):
         raise NotImplementedError("Negation must be eliminated before calling yield_dov.")
 
     def eliminate_negation(self) -> AtomicFormula:
-        negated = self.operand.negate()
-        negated.eliminate_negation()
+        negated = self.operand.negate().eliminate_negation()
         return negated
 
     def get_subformulae(self) -> List['StateFormula']:

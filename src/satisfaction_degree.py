@@ -74,7 +74,7 @@ def weighted_distance(state: StateType, border: SubspaceType, max_activities: Li
     """
     weights = [1 / max_activity for max_activity in max_activities]
     queue = MinPriorityQueue()
-    queue.decrease_priority(state, 0)  # Start with the initial state
+    queue.decrease_priority(state, 0.0)  # Start with the initial state
     visited = set()
 
     while not queue.is_empty():

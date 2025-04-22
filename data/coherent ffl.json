@@ -18,9 +18,9 @@
         "target": "Y",
         "regulators": [{ "variable": "X", "thresholds": [1, 2, 3, 4] }],
         "contexts": [
-          { "intervals": ["3"], "target_value": 1 },
-          { "intervals": ["4"], "target_value": 2 },
-          { "intervals": ["5"], "target_value": 3 },
+          { "intervals": [3], "target_value": 1 },
+          { "intervals": [4], "target_value": 2 },
+          { "intervals": [5], "target_value": 3 },
           { "intervals": ["*"], "target_value": 0 }
         ],
         "basal": 0
@@ -32,14 +32,14 @@
           { "variable": "Y", "thresholds": [1, 2, 4] }
         ],
         "contexts": [
-          { "intervals": ["3", "1"], "target_value": 1 },
-          { "intervals": ["1", "2"], "target_value": 1 },
-          { "intervals": ["2", "2"], "target_value": 2 },
-          { "intervals": ["3", "2"], "target_value": 2 },
-          { "intervals": ["1", "4"], "target_value": 3 },
-          { "intervals": ["*", "3"], "target_value": 3 },
-          { "intervals": ["*", "4"], "target_value": 4 },
-          { "intervals": ["*", "1"], "target_value": 0 }
+          { "intervals": [3, 1], "target_value": 1 },
+          { "intervals": [1, 2], "target_value": 1 },
+          { "intervals": [2, 2], "target_value": 2 },
+          { "intervals": [3, 2], "target_value": 2 },
+          { "intervals": [1, 4], "target_value": 3 },
+          { "intervals": ["*", 3], "target_value": 3 },
+          { "intervals": ["*", 4], "target_value": 4 },
+          { "intervals": ["*", 1], "target_value": 0 }
         ],
         "basal": 0
       }

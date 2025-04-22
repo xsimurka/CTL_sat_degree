@@ -12,10 +12,9 @@
           { "variable": "B", "thresholds": [1] }
         ],
         "contexts": [
-          { "intervals": ["1", "1"], "target_value": 1 },
-          { "intervals": ["2", "1"], "target_value": 2 },
-          { "intervals": ["1", "2"], "target_value": 0 },
-          { "intervals": ["2", "2"], "target_value": 1 }
+          { "intervals": [1, 2], "target_value": 0 },
+          { "intervals": [2, 1], "target_value": 2 },
+          { "intervals": ["*", "*"], "target_value": 1 }
         ]
       },
       {
@@ -25,10 +24,9 @@
           { "variable": "A", "thresholds": [1] }
         ],
         "contexts": [
-          { "intervals": ["1", "1"], "target_value": 1 },
-          { "intervals": ["2", "1"], "target_value": 2 },
-          { "intervals": ["1", "2"], "target_value": 0 },
-          { "intervals": ["2", "2"], "target_value": 1 }
+          { "intervals": [1, 2], "target_value": 0 },
+          { "intervals": [2, 1], "target_value": 2 },
+          { "intervals": ["*", "*"], "target_value": 1 }
         ]
       }
     ]

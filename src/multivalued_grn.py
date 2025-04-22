@@ -19,7 +19,7 @@ class MultivaluedGRN:
 
 class MvGRNParser:
     def __init__(self, json_data):
-        self.json_data = json_data
+        self.json_data = json_data["network"]
         self.variables = None
         self.regulations = None
 
@@ -198,23 +198,24 @@ class StateTransitionGraph:
         """
         successors = []
 
+        # Iterate over all variables
         for var_idx, var_name in enumerate(self.variable_names):
-            curr_var_val = state[var_idx]
+
+            # Get the variable's regulation rule
             regulation = self.regulations.get(var_name)
+            if regulation is None:  # skipp if variable is not regulated (static input)
+                continue
 
-            if regulation is None:
-                continue  # static input variable
-
-            regulators_names = [reg["variable"] for reg in regulation["regulators"]]
-            regulators_indices = [self.variable_names.index(rn) for rn in regulators_names]
-            regulators_values = [state[i] for i in regulators_indices]
+            regulators_indices = [self.variable_names.index(reg["variable"]) for reg in regulation["regulators"]]
+            regulators_values = [state[i] for i in regulators_indices]  # project the regulators' values only
             next_state = list(state)
-            for context in regulation["contexts"]:
+
+            for context in regulation["contexts"]:  # find the first matching context
                 if is_context_satisfied(context["intervals"], regulation["regulators"], regulators_values):
                     target_val = context["target_value"]
-                    delta = target_val - curr_var_val
+                    delta = target_val - state[var_idx]
                     if delta != 0:  # only append if the transition is not self loop (they are handled separately)
-                        next_state[var_idx] = curr_var_val + int(math.copysign(1, delta))
+                        next_state[var_idx] += int(math.copysign(1, delta))  # returns +- 1 based on sign of <delta>
                         successors.append(tuple(next_state))
                     break  # terminate after first matching context found
 
