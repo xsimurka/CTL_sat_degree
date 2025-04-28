@@ -1,6 +1,7 @@
 import unittest
 from src.lark_ctl_parser import parse_formula
-from src.ctl_formulae import AtomicProposition, Negation, Union, Intersection, Conjunction, Disjunction, EX, AX, EF, AF, EG, AG, EU, AU, EW, AW
+from src.ctl_formulae import AtomicProposition, Negation, Union, Intersection, Conjunction, Disjunction, EX, EF, AF, EG, AG, AU, EW
+from lark.exceptions import UnexpectedToken
 
 
 class TestFormulaParser(unittest.TestCase):
@@ -73,6 +74,14 @@ class TestFormulaParser(unittest.TestCase):
         self.assertIsInstance(result.right.operand, Conjunction)
         self.assertIsInstance(result.right.operand.left, Negation)
         self.assertIsInstance(result.right.operand.right, EG)
+
+
+    def test_not_left_aligned_formula(self):
+        formula = "(EG (x >=3)) && (x <=3)"
+        try:
+            parse_formula(formula)
+        except Exception as e:
+            self.assertIsInstance(e, UnexpectedToken)
 
 
 if __name__ == '__main__':

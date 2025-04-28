@@ -1,0 +1,28 @@
+{
+  "network": {
+    "variables": {
+      "H": 2,
+      "L": 2
+    },
+    "regulations": [
+      {
+        "target": "H",
+        "regulators": [{ "variable": "L", "thresholds": [1, 2] }],
+        "contexts": [
+          { "intervals": [1], "target_value": 2 },
+          { "intervals": ["*"], "target_value": 0 }
+        ]
+      },
+      {
+        "target": "L",
+        "regulators": [{ "variable": "H", "thresholds": [1, 2] }],
+        "contexts": [
+          { "intervals": [1], "target_value": 0 },
+          { "intervals": ["*"], "target_value": 2 }
+        ]
+      }
+    ]
+  },
+  "formula": "",
+  "init_states": {}
+}

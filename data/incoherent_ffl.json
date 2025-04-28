@@ -17,9 +17,9 @@
         "target": "Y",
         "regulators": [{ "variable": "X", "thresholds": [1, 2, 3, 4] }],
         "contexts": [
-          { "intervals": [3], "target_value": 1 },
-          { "intervals": [4], "target_value": 2 },
-          { "intervals": [5], "target_value": 3 },
+          { "intervals": [3], "target_value": 2 },
+          { "intervals": [4], "target_value": 3 },
+          { "intervals": [5], "target_value": 4 },
           { "intervals": ["*"], "target_value": 0 }
         ]
       },

@@ -215,24 +215,6 @@ class Intersection(AtomicFormula):
         return Union(Negation(self.left), Negation(self.right))
 
 
-class Boolean(StateFormula):
-    def __init__(self, value: bool):
-        self.value = value
-
-    def __repr__(self) -> str:
-        return str(self.value)
-
-    def eliminate_negation(self) -> 'StateFormula':
-        return self
-
-    def get_subformulae(self) -> List['StateFormula']:
-        return [self]
-
-    def evaluate(self, ks: KripkeStructure, formulae_evaluations: QuantLabelingFnType) -> None:
-        for state in ks.stg.states:
-            formulae_evaluations[state][repr(self)] = 1 if self.value else -1
-
-
 class UnaryOperator(StateFormula, ABC):
     def __init__(self, operand: StateFormula):
         self.operand = operand

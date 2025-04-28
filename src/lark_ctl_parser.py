@@ -8,7 +8,7 @@ grammar = r"""
     ?state_formula : state_formula_c
                   | atomic_formula "&&" state_formula_c -> conjunction
                   | atomic_formula "||" state_formula_c -> disjunction 
-                  | "(" state_formula ")" //-> parenthesis
+                  | "(" state_formula ")" -> parenthesis
                   | atomic_formula
 
     ?state_formula_c : state_formula_c "&&" state_formula_c -> conjunction
