@@ -1,5 +1,5 @@
 import unittest
-from src.priority_queue import MinPriorityQueue, MaxPriorityQueue  # Replace 'your_module' with the actual module name
+from src.priority_queue import MinPriorityQueue, MaxPriorityQueue
 
 
 class TestMinPriorityQueue(unittest.TestCase):

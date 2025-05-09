@@ -5,6 +5,11 @@ from bisect import bisect_right
 
 
 class MultivaluedGRN:
+    """
+    Data container class for a multivalued gene regulatory network (GRN).
+    Holds validated variables and regulations for further use.
+    """
+
     def __init__(self, variables, regulations):
         self.variables = variables
         self.regulations = regulations
@@ -18,8 +23,15 @@ class MultivaluedGRN:
 
 
 class MvGRNParser:
-    def __init__(self, json_data):
-        self.json_data = json_data["network"]
+    """
+    Parser and validator for multivalued GRN JSON input.
+    Ensures that the structure and values of variables and regulations conform to expected constraints,
+    and returns a `MultivaluedGRN` object.
+
+    @param network Encoded network to be parsed.
+    """
+    def __init__(self, network):
+        self.network = network
         self.variables = None
         self.regulations = None
 
@@ -32,11 +44,11 @@ class MvGRNParser:
         Parse and validate JSON data. Return a MultivaluedGRN object.
         """
         required_fields = {"variables", "regulations"}
-        if not required_fields.issubset(self.json_data):
+        if not required_fields.issubset(self.network):
             raise ValueError("Both 'variables' and 'regulations' fields must be specified.")
 
-        self.variables = self._validate_variables(self.json_data["variables"])
-        self.regulations = self._validate_regulations(self.json_data["regulations"])
+        self.variables = self._validate_variables(self.network["variables"])
+        self.regulations = self._validate_regulations(self.network["regulations"])
 
         return MultivaluedGRN(self.variables, self.regulations)
 
@@ -144,12 +156,20 @@ class MvGRNParser:
 
 
 class StateTransitionGraph:
-    def __init__(self, grn):
+    """
+    Constructs the state transition graph for a multivalued GRN.
+
+    Uses the regulation logic defined in the GRN to generate all states and possible transitions.
+    Builds a directed graph (DiGraph) where nodes are state tuples and edges are allowed transitions.
+
+    @param mvgrn Multivalued Gene Regulatory Network specification
+    """
+    def __init__(self, mvgrn):
         """
         Initialize the state transition graph from a MultivaluedGRN object.
         """
-        self.variables = grn.variables  # dict
-        self.regulations = {reg["target"]: reg for reg in grn.regulations}
+        self.variables = mvgrn.variables  # dict
+        self.regulations = {reg["target"]: reg for reg in mvgrn.regulations}
         self.states = list(self._generate_all_states())
         self.graph = self._construct_graph()
 
@@ -211,7 +231,7 @@ class StateTransitionGraph:
             next_state = list(state)
 
             for context in regulation["contexts"]:  # find the first matching context
-                if is_context_satisfied(context["intervals"], regulation["regulators"], regulators_values):
+                if self.is_context_satisfied(context["intervals"], regulation["regulators"], regulators_values):
                     target_val = context["target_value"]
                     delta = target_val - state[var_idx]
                     if delta != 0:  # only append if the transition is not self loop (they are handled separately)
@@ -221,24 +241,24 @@ class StateTransitionGraph:
 
         return successors
 
+    @staticmethod
+    def is_context_satisfied(context_intervals, regulators, regulator_values):
+        """
+        Check whether a context's intervals are satisfied by the given regulator state.
 
-def is_context_satisfied(context_intervals, regulators, regulator_values):
-    """
-    Check whether a context's intervals are satisfied by the given regulator state.
+        @param context_intervals: List of indices of activity intervals (integers or "*").
+        @param regulators Mapping of regulators' names and corresponding activity thresholds
+        @param regulator_values: List of regulators' activity levels in current state.
+        @return: True if context is satisfied, False otherwise.
+        """
+        for i in range(len(context_intervals)):
+            if context_intervals[i] == '*':
+                continue
+            ci = int(context_intervals[i])
+            thresholds = regulators[i].get("thresholds")
+            value = regulator_values[i]
+            # insert the value into activity intervals and compare with context value
+            if bisect_right(thresholds, value) + 1 != ci:
+                return False
 
-    @param context_intervals: List of indices of activity intervals (integers or "*").
-    @param regulators Mapping of regulators' names and corresponding activity thresholds
-    @param regulator_values: List of regulators' activity levels in current state.
-    @return: True if context is satisfied, False otherwise.
-    """
-    for i in range(len(context_intervals)):
-        if context_intervals[i] == '*':
-            continue
-        ci = int(context_intervals[i])
-        thresholds = regulators[i].get("thresholds")
-        value = regulator_values[i]
-        # insert the value into activity intervals and compare with context value
-        if bisect_right(thresholds, value) + 1 != ci:
-            return False
-
-    return True
+        return True

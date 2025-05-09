@@ -122,5 +122,5 @@ def find_extreme_depth(dov: SubspaceType, co_border: SubspaceType, max_act_value
                 distances[neighbor] = new_distance
                 queue.decrease_priority(neighbor, new_distance)
 
-    extreme = max(distances[state] for state in dov)
+    extreme = max(distances[state] for state in dov)  # opravit nekonecno
     return extreme

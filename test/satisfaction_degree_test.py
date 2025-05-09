@@ -1,5 +1,5 @@
 import unittest
-from src.satisfaction_degree import weighted_distance, find_extreme_depth, get_border_states
+from src.weighted_distance import weighted_distance, find_extreme_depth, get_border_states
 from itertools import product
 
 

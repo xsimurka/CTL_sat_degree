@@ -4,17 +4,17 @@ import networkx as nx
 import json
 
 # Open and read the file
-with open('../data/oto2.json', 'r') as f:
+with open('../data/incoherent_ffl2.json', 'r') as f:
     coh_ffl = json.load(f)
 
-mvgrn = MvGRNParser(coh_ffl).parse()
+mvgrn = MvGRNParser(coh_ffl.get("network")).parse()
 stg = StateTransitionGraph(mvgrn)
 
-start_state = (0,0)
+start_state = (0,0,0)
 
 reachable_nodes = nx.descendants(stg.graph, start_state)
 reachable_nodes.add(start_state)
-reachable_subgraph = stg.graph #.subgraph(reachable_nodes).copy()
+reachable_subgraph = stg.graph.subgraph(reachable_nodes).copy()
 
 # Find all strongly connected components
 sccs = list(nx.strongly_connected_components(reachable_subgraph))
@@ -35,7 +35,8 @@ for scc in sccs:
 
 # Now build the pydot graph and highlight
 pydot_graph = to_pydot(reachable_subgraph)
-
+for node in pydot_graph.get_nodes():
+    node.set_fontsize("32")
 # Highlight bottom SCC nodes
 for scc in bottom_sccs:
     for node in scc:
@@ -45,4 +46,6 @@ for scc in bottom_sccs:
         pydot_node.set_fillcolor('lightblue')  # or any color you like
         pydot_node.set_penwidth(2)
 
-pydot_graph.write_png("../stgs/oto2.png")
+pydot_graph.write_png("../stgs/sim.png")
+print(len(bottom_sccs))
+print(len(bottom_sccs[0]))

@@ -2,10 +2,10 @@
   "network": {
     "variables": {
       "TF": 7,
-      "A": 2,
-      "B": 2,
-      "C": 2,
-      "D": 2
+      "a": 3,
+      "B": 3,
+      "C": 3,
+      "D": 3
     },
     "regulations": [
       {
@@ -16,12 +16,12 @@
         ]
       },
       {
-        "target": "A",
+        "target": "a",
         "regulators": [{ "variable": "TF", "thresholds": [1, 3] }],
         "contexts": [
           { "intervals": [1], "target_value": 0 },
           { "intervals": [2], "target_value": 1 },
-          { "intervals": [3], "target_value": 2 }
+          { "intervals": [3], "target_value": 3 }
         ]
       },
       {
@@ -30,7 +30,7 @@
         "contexts": [
           { "intervals": [1], "target_value": 0 },
           { "intervals": [2], "target_value": 1 },
-          { "intervals": [3], "target_value": 2 }
+          { "intervals": [3], "target_value": 3 }
         ]
       },
       {
@@ -39,7 +39,7 @@
         "contexts": [
           { "intervals": [1], "target_value": 0 },
           { "intervals": [2], "target_value": 1 },
-          { "intervals": [3], "target_value": 2 }
+          { "intervals": [3], "target_value": 3 }
         ]
       },
       {
@@ -48,13 +48,13 @@
         "contexts": [
           { "intervals": [1], "target_value": 0 },
           { "intervals": [2], "target_value": 1 },
-          { "intervals": [3], "target_value": 2 }
+          { "intervals": [3], "target_value": 3 }
         ]
       }
     ]
   },
-  "formula": "",
-  "init_states": {}
+  "formula": "EF ((a >= 1 & a <= 1 & B >= 1 & B <= 1 & C >= 1 & C <= 1 & D >= 1 & D <= 1) && EF (a >= 2 & a <= 2 & B >= 2 & B <= 2 & C >= 2 & C <= 2 & D >= 2 & D <= 2 && EF (a >= 3 & a <= 3 & B >= 3 & B <= 3 & C >= 3 & C <= 3 & D >= 3 & D <= 3)))",
+  "init_states": []
 }
 
 

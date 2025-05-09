@@ -1,9 +1,0 @@
-{
-  "mvgrn_test.py": true,
-  "mvgrn_test.py::TestStateTransitionGraph::test_out_degree": true,
-  "satisfaction_degree_test.py": true,
-  "satisfaction_degree_test.py::TestDistanceFunctions::test_find_extreme_state_inside": true,
-  "satisfaction_degree_test.py::TestDistanceFunctions::test_find_extreme_state_inside_ambiguous": true,
-  "satisfaction_degree_test.py::TestDistanceFunctions::test_find_extreme_state_outside_ambiguous": true,
-  "signed_distance_test.py": true
-}
