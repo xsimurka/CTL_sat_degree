@@ -51,5 +51,6 @@ class KripkeStructure:
         """
         for sf in subformulae:
             sf.evaluate(self)
+            print("Done ", sf)
         return self.quantitative_labeling
 

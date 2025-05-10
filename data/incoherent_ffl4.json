@@ -68,6 +68,15 @@
       }
     ]
   },
-  "formula": "AF (AG (X >= 1 & Y >= 1 & Z >= 1))",
-  "init_states": []
+  "formula": "EG (X <= 0 | Y <= 0 | Z <= 0)",
+  "init_states": [
+    {
+      "X": [0]
+    },
+    {
+      "Y": [0]
+    },
+    {
+      "Z" : [0]
+    }]
 }

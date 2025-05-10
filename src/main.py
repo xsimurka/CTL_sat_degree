@@ -85,11 +85,11 @@ def main():
     Main function to load data, parse formulas, validate states, generate states,
     build Kripke structure, perform model checking, and print results.
     """
-    if len(sys.argv) != 2:
-        print("Script expects exactly one argument - path to json file.")
-        exit(1)
+    # if len(sys.argv) != 2:
+    #     print("Script expects exactly one argument - path to json file.")
+    #     exit(1)
 
-    with open("../data/incoherent_ffl2.json", 'r') as file:
+    with open("../data/single_input_module.json", 'r') as file:
         json_data = json.load(file)
 
     # Formula
@@ -114,6 +114,14 @@ def main():
     formulae_evaluations = ks.model_check(subformulae)
     format_result(formulae_evaluations, ks.init_states, positive_formula)
 
+import time
 
 if __name__ == "__main__":
-    main()
+    times = []
+    for i in range(3):
+        start = time.time()
+        main()
+        end = time.time()
+        times.append(end - start)
+    print(times)
+
