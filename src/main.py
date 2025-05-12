@@ -1,12 +1,47 @@
 import sys
 import json
-from math import inf
-from src.multivalued_grn import StateTransitionGraph, MvGRNParser
-from src.lark_ctl_parser import parse_formula
-from src.kripke_structure import KripkeStructure
 import itertools
+from math import inf
+from multivalued_grn import StateTransitionGraph, MvGRNParser
+from lark_ctl_parser import parse_formula
+from kripke_structure import KripkeStructure
 from custom_types import StateType
 from typing import List, Dict, Set
+
+
+def main():
+    """
+    Main function to load data, parse formulas, validate states, generate states,
+    build Kripke structure, perform model checking, and print results.
+    """
+    if len(sys.argv) != 2:
+        print("Script expects exactly one argument - path to json file.")
+        exit(1)
+
+    with open(sys.argv[1], 'r') as file:
+        json_data = json.load(file)
+
+    # Formula
+    formula_data = json_data.get("formula")
+    parsed_formula = parse_formula(formula_data)
+    positive_formula = parsed_formula.eliminate_negation()
+    subformulae = positive_formula.get_subformulae()
+
+    # Multivalued Gene Regulatory Network
+    network_data = json_data.get("network")
+    mvgrn = MvGRNParser(network_data).parse()
+    stg = StateTransitionGraph(mvgrn)
+
+    # Initial states
+    init_states_data = json_data.get("init_states")
+    validate_initial_states(init_states_data, mvgrn)
+    initial_states = generate_initial_states(init_states_data, network_data.get("variables"))
+    labels = [repr(sf) for sf in subformulae]
+
+    # Satisfaction degree computation
+    ks = KripkeStructure(stg, labels, initial_states)
+    formulae_evaluations = ks.model_check(subformulae)
+    format_result(formulae_evaluations, ks.init_states, positive_formula)
 
 
 def validate_initial_states(initial_states, mvgrn):
@@ -80,48 +115,5 @@ def format_result(formulae_evaluations, initial_states, formula) -> None:
     print("Average value among initial states:", cumulative / len(initial_states))
 
 
-def main():
-    """
-    Main function to load data, parse formulas, validate states, generate states,
-    build Kripke structure, perform model checking, and print results.
-    """
-    # if len(sys.argv) != 2:
-    #     print("Script expects exactly one argument - path to json file.")
-    #     exit(1)
-
-    with open("../data/single_input_module.json", 'r') as file:
-        json_data = json.load(file)
-
-    # Formula
-    formula_data = json_data.get("formula")
-    parsed_formula = parse_formula(formula_data)
-    positive_formula = parsed_formula.eliminate_negation()
-    subformulae = positive_formula.get_subformulae()
-
-    # Multivalued Gene Regulatory Network
-    network_data = json_data.get("network")
-    mvgrn = MvGRNParser(network_data).parse()
-    stg = StateTransitionGraph(mvgrn)
-
-    # Initial states
-    init_states_data = json_data.get("init_states")
-    validate_initial_states(init_states_data, mvgrn)
-    initial_states = generate_initial_states(init_states_data, network_data.get("variables"))
-    labels = [repr(sf) for sf in subformulae]
-
-    # Satisfaction degree computation
-    ks = KripkeStructure(stg, labels, initial_states)
-    formulae_evaluations = ks.model_check(subformulae)
-    format_result(formulae_evaluations, ks.init_states, positive_formula)
-
-import time
-
 if __name__ == "__main__":
-    times = []
-    for i in range(3):
-        start = time.time()
-        main()
-        end = time.time()
-        times.append(end - start)
-    print(times)
-
+    main()

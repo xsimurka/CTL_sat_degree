@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import List
 from itertools import product
-from src.kripke_structure import KripkeStructure
-from src.weighted_distance import weighted_distance, find_extreme_depth, get_border_states
-from src.custom_types import SubspaceType, MaxActivitiesType
-from src.priority_queue import MinPriorityQueue, MaxPriorityQueue
+from kripke_structure import KripkeStructure
+from weighted_distance import weighted_distance, find_extreme_depth, get_border_states
+from custom_types import SubspaceType, MaxActivitiesType
+from priority_queue import MinPriorityQueue, MaxPriorityQueue
 
 
 class StateFormula(ABC):

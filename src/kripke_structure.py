@@ -1,5 +1,5 @@
 from typing import Optional, List, Set
-from src.custom_types import StateType, QuantLabelingFnType
+from custom_types import StateType, QuantLabelingFnType
 
 
 class KripkeStructure:

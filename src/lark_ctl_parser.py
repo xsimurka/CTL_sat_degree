@@ -1,5 +1,5 @@
 from lark import Lark, Transformer
-from src.ctl_formulae import AtomicProposition, Negation, Union, Intersection, Conjunction, Disjunction, EX, AX, EF, AF, \
+from ctl_formulae import AtomicProposition, Negation, Union, Intersection, Conjunction, Disjunction, EX, AX, EF, AF, \
     EG, AG, EU, AU, EW, AW
 
 grammar = r"""

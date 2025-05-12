@@ -1,7 +1,7 @@
 from typing import List, Tuple
 from math import inf
-from src.custom_types import SubspaceType, StateType
-from src.priority_queue import MinPriorityQueue
+from custom_types import SubspaceType, StateType
+from priority_queue import MinPriorityQueue
 
 
 def get_hamming_neighbors(state: StateType, max_activities: List[int], weights=None, visited=None):
