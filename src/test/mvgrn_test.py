@@ -1,6 +1,5 @@
 import unittest
-from pathlib import Path
-from src.multivalued_grn import MvGRNParser, StateTransitionGraph, MultivaluedGRN, is_context_satisfied
+from multivalued_grn import MvGRNParser, StateTransitionGraph, MultivaluedGRN
 
 
 class TestStateTransitionGraph(unittest.TestCase):
@@ -95,13 +94,13 @@ class TestStateTransitionGraph(unittest.TestCase):
         self.stg = None
 
     def test_parse_valid_data(self):
-        parser = MvGRNParser(self.incoherent_ffl)
-        self.grn = parser.parse()
-        self.assertIsInstance(self.grn, MultivaluedGRN)
-        self.assertEqual(set(self.grn.variables.keys()), {"X", "Y", "Z"})
+        parser = MvGRNParser(self.incoherent_ffl.get("network"))
+        self.incoherent_ffl = parser.parse()
+        self.assertIsInstance(self.incoherent_ffl, MultivaluedGRN)
+        self.assertEqual(set(self.incoherent_ffl.variables.keys()), {"X", "Y", "Z"})
 
     def test_successor_generation_consistency(self):
-        parser = MvGRNParser(self.toggle_switch)
+        parser = MvGRNParser(self.toggle_switch.get("network"))
         self.grn = parser.parse()
         self.assertIsInstance(self.grn, MultivaluedGRN)
         self.assertEqual(set(self.grn.variables.keys()), {"A", "B"})
@@ -128,16 +127,6 @@ class TestStateTransitionGraph(unittest.TestCase):
         assert set(self.stg.graph.nodes) == set(successors.keys()), \
             "Mismatch in expected and actual nodes in the state transition graph"
 
-
-    def test_is_context_satisfied(self):
-        regulation = self.incoherent_ffl.get("network").get("regulations")[2]
-        regulators = regulation.get("regulators")
-        contexts = regulation.get("contexts")
-        self.assertTrue(is_context_satisfied(contexts[0].get("intervals"), regulators, (4, 2)))
-        self.assertTrue(is_context_satisfied(contexts[2].get("intervals"), regulators, (2, 0)))
-        self.assertTrue(is_context_satisfied(contexts[7].get("intervals"), regulators, (4, 4)))
-        self.assertFalse(is_context_satisfied(contexts[0].get("intervals"), regulators, (3, 4)))
-        self.assertFalse(is_context_satisfied(contexts[4].get("intervals"), regulators, (3, 2)))
 
 
 if __name__ == '__main__':

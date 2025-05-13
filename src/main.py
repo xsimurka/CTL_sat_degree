@@ -26,6 +26,7 @@ def main():
     parsed_formula = parse_formula(formula_data)
     positive_formula = parsed_formula.eliminate_negation()
     subformulae = positive_formula.get_subformulae()
+    labels = [repr(sf) for sf in subformulae]
 
     # Multivalued Gene Regulatory Network
     network_data = json_data.get("network")
@@ -36,11 +37,10 @@ def main():
     init_states_data = json_data.get("init_states")
     validate_initial_states(init_states_data, mvgrn)
     initial_states = generate_initial_states(init_states_data, network_data.get("variables"))
-    labels = [repr(sf) for sf in subformulae]
 
     # Satisfaction degree computation
     ks = KripkeStructure(stg, labels, initial_states)
-    formulae_evaluations = ks.model_check(subformulae)
+    formulae_evaluations = ks.evaluate(subformulae)
     format_result(formulae_evaluations, ks.init_states, positive_formula)
 
 

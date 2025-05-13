@@ -1,0 +1,11 @@
+{
+  "formula_methods_test.py": true,
+  "mvgrn_test.py": true,
+  "parser_test.py": true,
+  "satisfaction_degree_test.py::TestDistanceFunctions::test_find_extreme_depth_intersect_dov": true,
+  "satisfaction_degree_test.py::TestDistanceFunctions::test_find_extreme_depth_intersect_dov_complement": true,
+  "satisfaction_degree_test.py::TestDistanceFunctions::test_find_extreme_depth_simple_dov": true,
+  "satisfaction_degree_test.py::TestDistanceFunctions::test_find_extreme_depth_simple_dov_complement": true,
+  "satisfaction_degree_test.py::TestDistanceFunctions::test_find_extreme_depth_union_dov": true,
+  "satisfaction_degree_test.py::TestDistanceFunctions::test_find_extreme_depth_union_dov_complement": true
+}

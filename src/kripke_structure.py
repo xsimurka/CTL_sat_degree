@@ -1,4 +1,4 @@
-from typing import Optional, List, Set
+from typing import List
 from custom_types import StateType, QuantLabelingFnType
 
 
@@ -6,11 +6,12 @@ class KripkeStructure:
     """
     Represents a Kripke Structure used for model checking.
 
-    A Kripke structure consists of a state transition graph (STG) and a set of initial states.
+    A Kripke structure consists of a state transition graph (STG), set of initial states and
+    the quantitative labeling function.
     If no initial states are provided, all states in the transition graph are considered initial.
 
     @param stg: The state transition graph representing the structure.
-    @param labels List of labels of subformulae of the verified formula.
+    @param labels List of labels of all unique subformulae of the verified formula.
     @param init_states: A list of initial states.
     """
     def __init__(self, stg, labels: List[str], init_states: List[StateType]):
@@ -42,15 +43,13 @@ class KripkeStructure:
         """
         return {state: {label: None for label in labels} for state in self.stg.states}
 
-    def model_check(self, subformulae) -> QuantLabelingFnType:
+    def evaluate(self, subformulae) -> QuantLabelingFnType:
         """
-        Performs model checking for a given Kripke structure and subformulae of verified formula.
-        Evaluate each subformula iteratively in the order provided.
+        Evaluates the input subformulas against given Kripke structure in the order provided.
 
         @return: A mapping of states to their evaluation results for each subformula.
         """
         for sf in subformulae:
             sf.evaluate(self)
-            print("Done ", sf)
         return self.quantitative_labeling
 

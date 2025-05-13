@@ -1,6 +1,6 @@
 import unittest
-from src.lark_ctl_parser import parse_formula
-from src.ctl_formulae import AtomicProposition, Negation, Union, Intersection, Conjunction, Disjunction, EX, EF, AF, EG, AG, AU, EW
+from lark_ctl_parser import parse_formula
+from ctl_formulae import AtomicProposition, Negation, Union, Intersection, Conjunction, Disjunction, EX, EF, AF, EG, AG, AU, EW
 from lark.exceptions import UnexpectedToken
 
 

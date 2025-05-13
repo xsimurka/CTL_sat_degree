@@ -88,7 +88,7 @@ def weighted_distance(state: StateType, border: SubspaceType, max_activities: Li
             neighbor_dst = dist + step
             queue.decrease_priority(neighbor, neighbor_dst)
 
-    return float('inf')  # If no border state is found, return infinity
+    return inf  # if no border state is found, return infinity
 
 
 def find_extreme_depth(dov: SubspaceType, co_border: SubspaceType, max_act_values: List[int]) -> float:
@@ -122,5 +122,5 @@ def find_extreme_depth(dov: SubspaceType, co_border: SubspaceType, max_act_value
                 distances[neighbor] = new_distance
                 queue.decrease_priority(neighbor, new_distance)
 
-    extreme = max(distances[state] for state in dov)  # opravit nekonecno
+    extreme = max(distances[state] for state in dov) if distances else inf
     return extreme

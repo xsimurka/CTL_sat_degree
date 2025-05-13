@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from math import inf
 from typing import List
 from itertools import product
 from kripke_structure import KripkeStructure
@@ -22,10 +23,9 @@ class StateFormula(ABC):
         """
         Transforms the formula into an equivalent form without explicit negations.
 
-        This method recursively replaces negated formulas with their logically
-        equivalent forms using De Morgan’s laws and operator dualities, eliminating the
-        use of the Negation class entirely. The returned formula is guaranteed not to
-        contain any instances of Negation.
+        This method recursively replaces negated formulas with their logically equivalent
+        forms using De Morgan’s laws, eliminating the use of the Negation class entirely.
+        The returned formula is guaranteed not to contain any instances of Negation.
 
         @return StateFormula: A logically equivalent formula with all negations eliminated.
         """
@@ -48,7 +48,7 @@ class StateFormula(ABC):
         Evaluates the formula within the given Kripke structure.
 
         @param ks: The Kripke structure over which the formula is evaluated.
-        @return None: The function modifies formulae_evaluations in place.
+        @return None: The function modifies Kripke structure in place.
         """
         ...
 
@@ -75,9 +75,8 @@ class AtomicFormula(StateFormula):
         """
         Returns the logical negation of the atomic formula.
 
-        This method constructs a new formula that represents the logical negation
-        of the current one. It does not eliminate the negation, but returns a
-        syntactic representation that can later be transformed via eliminate_negation().
+        This method recursively constructs a new formula that represents the logical negation
+        of the current one.
 
         @return AtomicFormula: A formula logically equivalent to the negation of the current one.
         """
@@ -93,22 +92,22 @@ class AtomicFormula(StateFormula):
 
     def evaluate(self, ks: KripkeStructure) -> None:
         """
-        Evaluates the atomic formula in a given Kripke structure. Updates formulae_evaluations.
+        Evaluates the atomic formula in a given Kripke structure. Updates Kripke structure.
 
         @param ks: The Kripke structure to evaluate against.
         """
         dov = self.compute_dov(ks.stg.variables)
         co_dov = self.compute_dov_complement(dov, ks.stg.variables)
         dov_b, co_dov_b = get_border_states(dov, list(ks.stg.variables.values()))
-        max_depth = find_extreme_depth(dov, co_dov_b, list(ks.stg.variables.values()))
-        max_dist = find_extreme_depth(co_dov, dov_b, list(ks.stg.variables.values()))
+        max_dov_depth = find_extreme_depth(dov, co_dov_b, list(ks.stg.variables.values()))
+        max_co_dov_depth = find_extreme_depth(co_dov, dov_b, list(ks.stg.variables.values()))
         for state in ks.stg.states:
             if state in dov:
                 wd = weighted_distance(state, co_dov_b, list(ks.stg.variables.values()))
-                ks.quantitative_labeling[state][repr(self)] = wd / max_depth if max_depth > 0 else 0
+                ks.quantitative_labeling[state][repr(self)] = wd / max_dov_depth if max_dov_depth != inf else 1
             else:
                 wd = weighted_distance(state, dov_b, list(ks.stg.variables.values()))
-                ks.quantitative_labeling[state][repr(self)] = -wd / max_dist if max_depth > 0 else 0
+                ks.quantitative_labeling[state][repr(self)] = -wd / max_co_dov_depth if max_co_dov_depth != inf else -1
 
     @staticmethod
     def compute_dov_complement(dov, max_activities) -> SubspaceType:

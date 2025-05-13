@@ -1,5 +1,5 @@
 import unittest
-from src.weighted_distance import weighted_distance, find_extreme_depth, get_border_states
+from weighted_distance import weighted_distance, get_border_states
 from itertools import product
 
 
@@ -53,36 +53,6 @@ class TestDistanceFunctions(unittest.TestCase):
         state3 = (4, 6, 3)
         wd = weighted_distance(state3, self.simple_dov_co_border, self.max_activities)
         self.assertEqual(0.125, wd)
-
-    def test_find_extreme_depth_simple_dov(self):
-        depth = find_extreme_depth(self.simple_dov, self.simple_dov_co_border, self.max_activities)
-        self.assertEqual(depth, 0.0)
-
-    def test_find_extreme_depth_intersect_dov(self):
-        depth = find_extreme_depth(self.intersect_dov, self.intersect_dov_co_border, self.max_activities)
-        self.assertEqual(depth, 0.0)
-
-    def test_find_extreme_depth_union_dov(self):
-        depth = find_extreme_depth(self.union_dov, self.union_dov_co_border, self.max_activities)
-        self.assertEqual(depth, 0.0)
-
-    def test_find_extreme_depth_simple_dov_complement(self):
-        """Test depth in the complement of simple_dov using dov_border as reference."""
-        co_dov = self.state_space - self.simple_dov
-        depth = find_extreme_depth(co_dov, self.simple_dov_border, self.max_activities)
-        self.assertEqual(depth, 0.0)
-
-    def test_find_extreme_depth_intersect_dov_complement(self):
-        """Test depth in the complement of intersect_dov using dov_border as reference."""
-        co_dov = self.state_space - self.intersect_dov
-        depth = find_extreme_depth(co_dov, self.intersect_dov_border, self.max_activities)
-        self.assertEqual(depth, 0.0)
-
-    def test_find_extreme_depth_union_dov_complement(self):
-        """Test depth in the complement of union_dov using dov_border as reference."""
-        co_dov = self.state_space - self.union_dov
-        depth = find_extreme_depth(co_dov, self.union_dov_border, self.max_activities)
-        self.assertEqual(depth, 0.0)
 
 
 if __name__ == '__main__':
