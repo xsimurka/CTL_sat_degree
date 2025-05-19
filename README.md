@@ -48,6 +48,9 @@ This project uses Python 3.9+ and the following libraries:
 
 - `lark` – for parsing CTL formulas
 - `networkx` – for graph representations
+- `heapdict` – for custom priority queues
+- `mathplotlib` – for visualizations
+- `numpy` – for internal computations
 
 Install dependencies with:
 
