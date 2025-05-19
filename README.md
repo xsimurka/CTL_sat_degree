@@ -6,6 +6,7 @@ This project was developed as part of my Master's thesis at Faculty of Informati
 
 ## Structure of the repository:
 
+```
 CTL_sat_degree/
 ├── data/
 │ ├── incoherent_ffl1.json
@@ -39,6 +40,7 @@ CTL_sat_degree/
 │ ├── predator_prey2.png
 │ └── single_input_module.png
 └──
+```
 
 ## Dependencies
 
