@@ -1,25 +1,26 @@
-import sys
-import json
-import itertools
+from sys import argv
+from json import load
+from itertools import product
 from math import inf
 from multivalued_grn import StateTransitionGraph, MvGRNParser
 from lark_ctl_parser import parse_formula
 from kripke_structure import KripkeStructure
-from custom_types import StateType
+from custom_types import StateType, QuantLabelingFnType, MaxActivitiesType
 from typing import List, Dict, Set
+from ctl_formulae import StateFormula
 
 
 def main():
     """
-    Main function to load data, parse formulas, validate states, generate states,
-    build Kripke structure, perform model checking, and print results.
+    Main function that loads data, parses formula, validates initial states, generates states,
+    builds Kripke structure, performs model checking, and prints results.
     """
-    if len(sys.argv) != 2:
+    if len(argv) != 2:
         print("Script expects exactly one argument - path to json file.")
         exit(1)
 
-    with open(sys.argv[1], 'r') as file:
-        json_data = json.load(file)
+    with open(argv[1], 'r') as file:
+        json_data = load(file)
 
     # Formula
     formula_data = json_data.get("formula")
@@ -35,7 +36,7 @@ def main():
 
     # Initial states
     init_states_data = json_data.get("init_states")
-    validate_initial_states(init_states_data, mvgrn)
+    validate_initial_states(init_states_data, mvgrn.variables)
     initial_states = generate_initial_states(init_states_data, network_data.get("variables"))
 
     # Satisfaction degree computation
@@ -44,28 +45,27 @@ def main():
     format_result(formulae_evaluations, ks.init_states, positive_formula)
 
 
-def validate_initial_states(initial_states, mvgrn):
+def validate_initial_states(initial_states: List[Dict[str, List[int]]], variables: MaxActivitiesType):
     """
     Validates whether all constraints in initial_states lie within the allowed range [0, max_activity_value].
 
     @param initial_states: Dictionary of initial state constraints { variable_name: value }
-    @param mvgrn: Parsed MvGRN object
-    @raises ValueError: If any value is out of bounds or the variable doesn't exist in mvgrn.
+    @param variables: Dictionary of variables and their corresponding maximum activity values
+    @raises ValueError: If any value is out of bounds or the variable doesn't exist in variables.
     """
     for region in initial_states:
         for var, values in region.items():
-            if var not in mvgrn.variables:
+            if var not in variables:
                 raise ValueError(f"Variable '{var}' not found in the network.")
 
-            max_value = mvgrn.variables[var]
-
+            max_value = variables[var]
             if any(not 0 <= v <= max_value for v in values):
                 raise ValueError(
                     f"Some value from {values} for variable '{var}' is out of bounds. Allowed range is [0, {max_value}]."
                 )
 
 
-def generate_initial_states(initial_states: List[Dict[str, List[int]]], variables: Dict[str, int]) -> List[StateType]:
+def generate_initial_states(initial_states: List[Dict[str, List[int]]], variables: MaxActivitiesType) -> List[StateType]:
     """
     Generates all possible initial states based on given constraints and variable domains.
 
@@ -74,7 +74,7 @@ def generate_initial_states(initial_states: List[Dict[str, List[int]]], variable
     @return: List of all possible initial states as tuples
     """
     if not initial_states:
-        return list(itertools.product(*(range(max_act + 1) for max_act in variables.values())))
+        return list(product(*(range(max_act + 1) for max_act in variables.values())))
 
     ordered_variables = list(variables.keys())
     result: Set = set()
@@ -82,25 +82,26 @@ def generate_initial_states(initial_states: List[Dict[str, List[int]]], variable
         domains = []
         for var in ordered_variables:
             domains.append(set(region.get(var, range(variables[var] + 1))))
-        result.update(itertools.product(*domains))
+        result.update(product(*domains))
 
     return list(result)
 
 
-def format_result(formulae_evaluations, initial_states, formula) -> None:
+def format_result(quantitative_labeling: QuantLabelingFnType, initial_states: List[StateType],
+                  formula: StateFormula) -> None:
     """
     Formats and prints the results of the formula evaluation on initial states.
-    Namely prints: worst and best values along with an arbitrary witness state,
+    Namely prints: worst and best values along with an arbitrary state,
     average satisfaction degree value among the initial states.
 
-    @param formulae_evaluations: Dictionary mapping states to formula evaluations
+    @param quantitative_labeling: Quantitative labeling function
     @param initial_states: List of initial states
     @param formula: The formula being evaluated
     """
     minimum, maximum, cumulative = inf, -inf, 0
     min_state, max_state = None, None
     for state in initial_states:
-        value = formulae_evaluations[state][repr(formula)]
+        value = quantitative_labeling[state][repr(formula)]
         if value < minimum:
             min_state = state
             minimum = value
