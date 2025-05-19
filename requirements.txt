@@ -1,0 +1,5 @@
+lark~=1.2.2
+networkx~=2.5.1
+matplotlib~=3.6.2
+numpy~=1.25.2
+HeapDict~=1.0.1
