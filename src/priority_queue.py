@@ -1,4 +1,4 @@
-import heapdict
+from heapdict import heapdict
 
 
 class MinPriorityQueue:
@@ -7,7 +7,7 @@ class MinPriorityQueue:
     Supports insertion, extraction of the minimum element, and priority decrease.
     """
     def __init__(self):
-        self.heap = heapdict.heapdict()
+        self.heap = heapdict()
 
     def is_empty(self):
         """Checks if the priority queue is empty."""
@@ -38,7 +38,7 @@ class MaxPriorityQueue:
     Supports insertion, extraction of the maximum element, and priority increase.
     """
     def __init__(self):
-        self.heap = heapdict.heapdict()
+        self.heap = heapdict()
 
     def is_empty(self):
         """Checks if the priority queue is empty."""

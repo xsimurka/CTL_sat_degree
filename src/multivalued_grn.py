@@ -1,6 +1,6 @@
-import itertools
-import math
-import networkx as nx
+from itertools import product
+from math import copysign
+from networkx import DiGraph
 from bisect import bisect_right
 
 
@@ -188,7 +188,7 @@ class StateTransitionGraph:
         @return: Iterator over state tuples.
         """
         domains = [range(max_value + 1) for max_value in self.max_activity_values]
-        return itertools.product(*domains)
+        return product(*domains)
 
     def _construct_graph(self):
         """
@@ -196,7 +196,7 @@ class StateTransitionGraph:
 
         @return: networkx.DiGraph object.
         """
-        G = nx.DiGraph()
+        G = DiGraph()
         G.add_nodes_from(self.states)
 
         for state in self.states:
@@ -235,7 +235,7 @@ class StateTransitionGraph:
                     target_val = context["target_value"]
                     delta = target_val - state[var_idx]
                     if delta != 0:  # only append if the transition is not self loop (they are handled separately)
-                        next_state[var_idx] += int(math.copysign(1, delta))  # returns +- 1 based on sign of <delta>
+                        next_state[var_idx] += int(copysign(1, delta))  # returns +- 1 based on sign of <delta>
                         successors.append(tuple(next_state))
                     break  # terminate after first matching context found
 
