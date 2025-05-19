@@ -10,9 +10,9 @@ from priority_queue import MinPriorityQueue, MaxPriorityQueue
 
 class StateFormula(ABC):
     """
-    Abstract base class representing a state CTL formula.
+    Abstract base class representing a CTL state formula.
 
-    A state formula defines logical conditions that hold in particular states
+    A state formula defines a temporal property that hold in particular states
     of a Kripke structure. This class provides an interface for eliminating
     negation, retrieving subformulae, and evaluating the formula in a given
     Kripke structure.
@@ -35,7 +35,7 @@ class StateFormula(ABC):
     def get_subformulae(self) -> List['StateFormula']:
         """
         Retrieves a list of subformulae contained within this formula.
-        Important: The order in list ensures that all the subformulas of any formula are listed before.
+        The order in list ensures that all the subformulas of any formula are listed before.
         Especially, this means that when evaluating a formula, all of its subformulas have already been evaluated.
 
         @return A list of subformulae, where each element is an instance of StateFormula.
@@ -55,9 +55,9 @@ class StateFormula(ABC):
 
 class AtomicFormula(StateFormula):
     """
-    Abstract base class for atomic formulas in CTL.
+    Abstract base class for CTL atomic formula.
 
-    Atomic formulas define constraints over states in a Kripke structure.
+    Atomic formulas define non-temporal constraints over states in a Kripke structure.
     """
 
     @abstractmethod
@@ -112,7 +112,7 @@ class AtomicFormula(StateFormula):
     @staticmethod
     def compute_dov_complement(dov, max_activities) -> SubspaceType:
         """Returns the complement of the given set of states within the valid space."""
-        variables = list(max_activities.keys())  # Ensure correct order
+        variables = list(max_activities.keys())
         full_space = set(product(*(range(max_activities[var] + 1) for var in variables)))
         return full_space - dov
 
@@ -224,85 +224,26 @@ class UnaryOperator(StateFormula, ABC):
         return self
 
 
-class AG(UnaryOperator):
+class EX(UnaryOperator):
     def __repr__(self) -> str:
-        return f"AG ({repr(self.operand)})"
+        return f"EX ({repr(self.operand)})"
 
     def evaluate(self, ks: KripkeStructure) -> None:
-        queue = MinPriorityQueue()
-        for state in ks.stg.states:
-            ks.quantitative_labeling[state][repr(self)] = ks.quantitative_labeling[state][repr(self.operand)]
-
         for state in ks.stg.states:
             succs = ks.stg.graph.successors(state)
-            priority = min([ks.quantitative_labeling[s][repr(self)] for s in succs])
-            queue.decrease_priority(state, priority)
-
-        while queue.heap:
-            state, _ = queue.extract_min()
-            succs = ks.stg.graph.successors(state)
-            min_value = min(
-                [ks.quantitative_labeling[s][repr(self)] for s in succs])  # all needs minimal value of operand
-            # if state has no value yet or propagated minimal value is smaller than actual best, replace it and notify predecessors
-            if min_value < ks.quantitative_labeling[state][repr(self)]:
-                ks.quantitative_labeling[state][repr(self)] = min_value  # replace the original value
-                predcs = ks.stg.graph.predecessors(state)
-                for p in predcs:
-                    queue.decrease_priority(p, min_value)
+            ks.quantitative_labeling[state][repr(self)] = max(
+                [ks.quantitative_labeling[s][repr(self.operand)] for s in succs])
 
 
-class EG(UnaryOperator):
+class AX(UnaryOperator):
     def __repr__(self) -> str:
-        return f"EG ({repr(self.operand)})"
+        return f"AX ({repr(self.operand)})"
 
     def evaluate(self, ks: KripkeStructure) -> None:
-        queue = MinPriorityQueue()
-        for state in ks.stg.states:
-            ks.quantitative_labeling[state][repr(self)] = ks.quantitative_labeling[state][repr(self.operand)]
-
-        for state in ks.stg.states:
-            succs = list(ks.stg.graph.successors(state))
-            priority = min([ks.quantitative_labeling[s][repr(self)] for s in succs])
-            queue.decrease_priority(state, priority)
-
-        while queue.heap:
-            state, _ = queue.extract_min()
-            succs = ks.stg.graph.successors(state)
-            max_value = max(
-                [ks.quantitative_labeling[s][repr(self)] for s in succs])  # exists needs maximal value of operand
-            # if state has no value yet or propagated maximal value is smaller than actual best, replace it and notify predecessors
-            if max_value < ks.quantitative_labeling[state][repr(self)]:
-                ks.quantitative_labeling[state][repr(self)] = max_value  # replace the original value
-                predcs = ks.stg.graph.predecessors(state)
-                for p in predcs:
-                    queue.decrease_priority(p, max_value)
-
-
-class AF(UnaryOperator):
-    def __repr__(self) -> str:
-        return f"AF ({repr(self.operand)})"
-
-    def evaluate(self, ks: KripkeStructure) -> None:
-        queue = MaxPriorityQueue()
-        for state in ks.stg.states:
-            ks.quantitative_labeling[state][repr(self)] = ks.quantitative_labeling[state][repr(self.operand)]
-
         for state in ks.stg.states:
             succs = ks.stg.graph.successors(state)
-            priority = max([ks.quantitative_labeling[s][repr(self)] for s in succs])
-            queue.increase_priority(state, priority)
-
-        while queue.heap:
-            state, _ = queue.extract_max()
-            succs = list(ks.stg.graph.successors(state))
-            min_value = min(
-                [ks.quantitative_labeling[s][repr(self)] for s in succs])  # all needs minimal value of operand
-            # if state has no value yet or propagated minimal value is greater than actual best, replace it and notify predecessors
-            if min_value > ks.quantitative_labeling[state][repr(self)]:
-                ks.quantitative_labeling[state][repr(self)] = min_value  # replace the original value
-                predcs = ks.stg.graph.predecessors(state)
-                for p in predcs:
-                    queue.increase_priority(p, min_value)
+            ks.quantitative_labeling[state][repr(self)] = min(
+                [ks.quantitative_labeling[s][repr(self.operand)] for s in succs])
 
 
 class EF(UnaryOperator):
@@ -319,7 +260,7 @@ class EF(UnaryOperator):
             priority = max([ks.quantitative_labeling[s][repr(self)] for s in succs])
             queue.increase_priority(state, priority)
 
-        while queue.heap:
+        while not queue.is_empty():
             state, _ = queue.extract_max()
             succs = ks.stg.graph.successors(state)
             max_value = max(
@@ -332,26 +273,85 @@ class EF(UnaryOperator):
                     queue.increase_priority(p, max_value)
 
 
-class AX(UnaryOperator):
+class AF(UnaryOperator):
     def __repr__(self) -> str:
-        return f"AX ({repr(self.operand)})"
+        return f"AF ({repr(self.operand)})"
 
     def evaluate(self, ks: KripkeStructure) -> None:
+        queue = MaxPriorityQueue()
+        for state in ks.stg.states:
+            ks.quantitative_labeling[state][repr(self)] = ks.quantitative_labeling[state][repr(self.operand)]
+
         for state in ks.stg.states:
             succs = ks.stg.graph.successors(state)
-            ks.quantitative_labeling[state][repr(self)] = min(
-                [ks.quantitative_labeling[s][repr(self.operand)] for s in succs])
+            priority = max([ks.quantitative_labeling[s][repr(self)] for s in succs])
+            queue.increase_priority(state, priority)
+
+        while not queue.is_empty():
+            state, _ = queue.extract_max()
+            succs = list(ks.stg.graph.successors(state))
+            min_value = min(
+                [ks.quantitative_labeling[s][repr(self)] for s in succs])  # all needs minimal value of operand
+            # if state has no value yet or propagated minimal value is greater than actual best, replace it and notify predecessors
+            if min_value > ks.quantitative_labeling[state][repr(self)]:
+                ks.quantitative_labeling[state][repr(self)] = min_value  # replace the original value
+                predcs = ks.stg.graph.predecessors(state)
+                for p in predcs:
+                    queue.increase_priority(p, min_value)
 
 
-class EX(UnaryOperator):
+class EG(UnaryOperator):
     def __repr__(self) -> str:
-        return f"EX ({repr(self.operand)})"
+        return f"EG ({repr(self.operand)})"
 
     def evaluate(self, ks: KripkeStructure) -> None:
+        queue = MinPriorityQueue()
+        for state in ks.stg.states:
+            ks.quantitative_labeling[state][repr(self)] = ks.quantitative_labeling[state][repr(self.operand)]
+
+        for state in ks.stg.states:
+            succs = list(ks.stg.graph.successors(state))
+            priority = min([ks.quantitative_labeling[s][repr(self)] for s in succs])
+            queue.decrease_priority(state, priority)
+
+        while not queue.is_empty():
+            state, _ = queue.extract_min()
+            succs = ks.stg.graph.successors(state)
+            max_value = max(
+                [ks.quantitative_labeling[s][repr(self)] for s in succs])  # exists needs maximal value of operand
+            # if state has no value yet or propagated maximal value is smaller than actual best, replace it and notify predecessors
+            if max_value < ks.quantitative_labeling[state][repr(self)]:
+                ks.quantitative_labeling[state][repr(self)] = max_value  # replace the original value
+                predcs = ks.stg.graph.predecessors(state)
+                for p in predcs:
+                    queue.decrease_priority(p, max_value)
+
+
+class AG(UnaryOperator):
+    def __repr__(self) -> str:
+        return f"AG ({repr(self.operand)})"
+
+    def evaluate(self, ks: KripkeStructure) -> None:
+        queue = MinPriorityQueue()
+        for state in ks.stg.states:
+            ks.quantitative_labeling[state][repr(self)] = ks.quantitative_labeling[state][repr(self.operand)]
+
         for state in ks.stg.states:
             succs = ks.stg.graph.successors(state)
-            ks.quantitative_labeling[state][repr(self)] = max(
-                [ks.quantitative_labeling[s][repr(self.operand)] for s in succs])
+            priority = min([ks.quantitative_labeling[s][repr(self)] for s in succs])
+            queue.decrease_priority(state, priority)
+
+        while not queue.is_empty():
+            state, _ = queue.extract_min()
+            succs = ks.stg.graph.successors(state)
+            min_value = min(
+                [ks.quantitative_labeling[s][repr(self)] for s in succs])  # all needs minimal value of operand
+            # if state has no value yet or propagated minimal value is smaller than actual best, replace it and notify predecessors
+            if min_value < ks.quantitative_labeling[state][repr(self)]:
+                ks.quantitative_labeling[state][repr(self)] = min_value  # replace the original value
+                predcs = ks.stg.graph.predecessors(state)
+                for p in predcs:
+                    queue.decrease_priority(p, min_value)
 
 
 class BinaryOperator(StateFormula, ABC):
@@ -390,35 +390,6 @@ class Disjunction(BinaryOperator):
                                                               ks.quantitative_labeling[state][repr(self.right)])
 
 
-class AU(BinaryOperator):
-    def __repr__(self) -> str:
-        return f"A ({repr(self.left)}) U ({repr(self.right)})"
-
-    def evaluate(self, ks: KripkeStructure) -> None:
-        queue = MaxPriorityQueue()
-        for state in ks.stg.states:  # initialize the computation with the right operand value in each state
-            ks.quantitative_labeling[state][repr(self)] = ks.quantitative_labeling[state][repr(self.right)]
-
-        for state in ks.stg.states:
-            succs = ks.stg.graph.successors(state)
-            priority = max([ks.quantitative_labeling[s][repr(self)] for s in succs])
-            queue.increase_priority(state, priority)
-
-        while queue.heap:
-            state, _ = queue.extract_max()
-            succs = ks.stg.graph.successors(state)
-            min_until_nexts = min([ks.quantitative_labeling[s][repr(self)] for s in
-                                   succs])  # all takes minimal value of the whole Until from successors
-            left_self, until_self = ks.quantitative_labeling[state][repr(self.left)], ks.quantitative_labeling[state][
-                repr(self)]
-            extend = min(left_self, min_until_nexts)  # tries to extend the prefix with the current left
-            if extend > until_self:  # compare the extended prefix with actual value of until, if extension is better, then update
-                ks.quantitative_labeling[state][repr(self)] = extend
-                predcs = ks.stg.graph.predecessors(state)
-                for p in predcs:
-                    queue.increase_priority(p, extend)
-
-
 class EU(BinaryOperator):
     def __repr__(self) -> str:
         return f"E ({repr(self.left)}) U ({repr(self.right)})"
@@ -433,7 +404,7 @@ class EU(BinaryOperator):
             priority = max([ks.quantitative_labeling[s][repr(self)] for s in succs])
             queue.increase_priority(state, priority)
 
-        while queue.heap:
+        while not queue.is_empty():
             state, _ = queue.extract_max()
             succs = ks.stg.graph.successors(state)
             max_until_nexts = max([ks.quantitative_labeling[s][repr(self)] for s in
@@ -448,23 +419,33 @@ class EU(BinaryOperator):
                     queue.increase_priority(p, extend)
 
 
-class AW(BinaryOperator):
+class AU(BinaryOperator):
     def __repr__(self) -> str:
-        return f"A ({repr(self.left)}) W ({repr(self.right)})"
+        return f"A ({repr(self.left)}) U ({repr(self.right)})"
 
     def evaluate(self, ks: KripkeStructure) -> None:
-        """The problem here is that you cannot optimize between AG and AU online because you have no guarantee on AG
-        until it finally converges. It can happen that you overwrite the best AU by best AG at some point, but later
-        you find out that the AG is actually very poor. But the information about best AU is already lost.
-        The solution is to optimize both options separately and finally to optimize between them in each state."""
+        queue = MaxPriorityQueue()
+        for state in ks.stg.states:  # initialize the computation with the right operand value in each state
+            ks.quantitative_labeling[state][repr(self)] = ks.quantitative_labeling[state][repr(self.right)]
 
-        ag = AG(self.left)
-        au = AU(self.left, self.right)
-        ag.evaluate(ks)
-        au.evaluate(ks)
         for state in ks.stg.states:
-            ks.quantitative_labeling[state][repr(self)] = max(ks.quantitative_labeling[state][repr(ag)],
-                                                              ks.quantitative_labeling[state][repr(au)])
+            succs = ks.stg.graph.successors(state)
+            priority = max([ks.quantitative_labeling[s][repr(self)] for s in succs])
+            queue.increase_priority(state, priority)
+
+        while not queue.is_empty():
+            state, _ = queue.extract_max()
+            succs = ks.stg.graph.successors(state)
+            min_until_nexts = min([ks.quantitative_labeling[s][repr(self)] for s in
+                                   succs])  # all takes minimal value of the whole Until from successors
+            left_self, until_self = ks.quantitative_labeling[state][repr(self.left)], ks.quantitative_labeling[state][
+                repr(self)]
+            extend = min(left_self, min_until_nexts)  # tries to extend the prefix with the current left
+            if extend > until_self:  # compare the extended prefix with actual value of until, if extension is better, then update
+                ks.quantitative_labeling[state][repr(self)] = extend
+                predcs = ks.stg.graph.predecessors(state)
+                for p in predcs:
+                    queue.increase_priority(p, extend)
 
 
 class EW(BinaryOperator):
@@ -472,11 +453,6 @@ class EW(BinaryOperator):
         return f"E ({repr(self.left)}) W ({repr(self.right)})"
 
     def evaluate(self, ks: KripkeStructure) -> None:
-        """The problem here is that you cannot optimize between EG and EU online because you have no guarantee on EG
-        until it finally converges. It can happen that you overwrite the best EU by best EG at some point, but later
-        you find out that the EG is actually very poor. But the information about best EU is already lost.
-        The solution is to optimize both options separately and finally to optimize between them in each state."""
-
         eg = EG(self.left)
         eu = EU(self.left, self.right)
 
@@ -485,3 +461,17 @@ class EW(BinaryOperator):
         for state in ks.stg.states:
             ks.quantitative_labeling[state][repr(self)] = max(ks.quantitative_labeling[state][repr(eg)],
                                                               ks.quantitative_labeling[state][repr(eu)])
+
+
+class AW(BinaryOperator):
+    def __repr__(self) -> str:
+        return f"A ({repr(self.left)}) W ({repr(self.right)})"
+
+    def evaluate(self, ks: KripkeStructure) -> None:
+        ag = AG(self.left)
+        au = AU(self.left, self.right)
+        ag.evaluate(ks)
+        au.evaluate(ks)
+        for state in ks.stg.states:
+            ks.quantitative_labeling[state][repr(self)] = max(ks.quantitative_labeling[state][repr(ag)],
+                                                              ks.quantitative_labeling[state][repr(au)])
