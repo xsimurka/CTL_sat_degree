@@ -4,9 +4,9 @@ from custom_types import SubspaceType, StateType
 from priority_queue import MinPriorityQueue
 
 
-def get_hamming_neighbors(state: StateType, max_activities: List[int], weights=None, visited=None):
+def get_manhattan_neighbors(state: StateType, max_activities: List[int], weights=None, visited=None):
     """
-    Yield valid and unvisited Hamming neighbors in order of increasing weighted distance.
+    Yield valid and unvisited Manhattan neighbors in order of increasing weighted distance.
 
     The algorithm works by iterating over each dimension of the state, adjusting each value by ±1 (delta).
     It checks if the resulting neighbor is within the allowed bounds (max_activities) and has not been visited.
@@ -40,7 +40,7 @@ def get_border_states(dov: SubspaceType, max_activities: List[int]) -> Tuple[Sub
     """
     Identify border states for both DoV and its complement.
 
-    A state in DoV is a border state if it has at least one Hamming neighbor outside DoV (i.e., in co-DoV).
+    A state in DoV is a border state if it has at least one Manhattan neighbor outside DoV (i.e., in co-DoV).
     Conversely, a neighbor in co-DoV is also a border state for co-DoV.
 
     @param dov: The domain of validity.
@@ -51,7 +51,7 @@ def get_border_states(dov: SubspaceType, max_activities: List[int]) -> Tuple[Sub
     co_dov_border = set()
 
     for state in dov:
-        for _, neighbor in get_hamming_neighbors(state, max_activities):
+        for _, neighbor in get_manhattan_neighbors(state, max_activities):
             if neighbor not in dov:
                 dov_border.add(state)
                 co_dov_border.add(neighbor)
@@ -61,16 +61,16 @@ def get_border_states(dov: SubspaceType, max_activities: List[int]) -> Tuple[Sub
 
 def weighted_distance(state: StateType, border: SubspaceType, max_activities: List[int]) -> float:
     """
-    Compute the shortest weighted Hamming distance from a given state to the border of the state set.
+    Compute the shortest weighted Manhattan distance from a given state to the border of the state set.
 
-    The algorithm uses a priority queue to perform a modified Dijkstra's algorithm for weighted Hamming distances.
+    The algorithm uses a priority queue to perform a modified Dijkstra's algorithm for weighted Manhattan distances.
     It iteratively updates the shortest distances from the starting state to neighboring states and checks if any state
     reaches the border. The distance to the first border state found is returned.
 
     @param state: The starting state for distance computation.
     @param border: The set of border states.
     @param max_activities: A list of maximum allowed values for each activity dimension.
-    @return: The shortest weighted Hamming distance to the border.
+    @return: The shortest weighted Manhattan distance to the border.
     """
     weights = [1 / max_activity for max_activity in max_activities]
     queue = MinPriorityQueue()
@@ -84,7 +84,7 @@ def weighted_distance(state: StateType, border: SubspaceType, max_activities: Li
         visited.add(current)
 
         # Iterate over neighbors and update distances
-        for step, neighbor in get_hamming_neighbors(current, max_activities, weights, visited):
+        for step, neighbor in get_manhattan_neighbors(current, max_activities, weights, visited):
             neighbor_dst = dist + step
             queue.decrease_priority(neighbor, neighbor_dst)
 
@@ -114,7 +114,7 @@ def find_extreme_depth(dov: SubspaceType, co_border: SubspaceType, max_act_value
 
     while not queue.is_empty():
         current_state, current_distance = queue.extract_min()
-        for step_size, neighbor in get_hamming_neighbors(current_state, max_act_values, weights):
+        for step_size, neighbor in get_manhattan_neighbors(current_state, max_act_values, weights):
             if neighbor not in dov:
                 continue
             new_distance = current_distance + step_size
